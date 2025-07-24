@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工時管理系統</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* 左側欄 - Top Task 清單 */
+        .sidebar {
+            width: 280px;
+            background-color: white;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+        }
+
+        .sidebar-header {
+            padding: 20px 15px;
+            background-color: white;
+            border-bottom: 1px solid #e0e0e0;
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .task-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        .task-item {
+            padding: 15px 20px;
+            margin: 0;
+            background: white;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+        }
+
+        .task-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .task-item.active {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+
+        .task-item.active .task-icon {
+            color: #2196f3;
+        }
+
+        .task-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .task-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .task-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            margin: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .task-edit-btn {
+            opacity: 0;
+            width: 20px;
+            height: 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            color: #666;
+            font-size: 12px;
+            transition: opacity 0.2s;
+        }
+
+        .task-item:hover .task-edit-btn {
+            opacity: 1;
+        }
+
+        .task-edit-btn:hover {
+            color: #2196f3;
+        }
+
+        .add-task-btn {
+            margin: 20px;
+            padding: 12px 16px;
+            background-color: #f5f5f5;
+            color: #666;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .add-task-btn:hover {
+            background-color: #e3f2fd;
+            color: #2196f3;
+            border-color: #2196f3;
+        }
+
+        /* 右側欄 - SWB List */
+        .right-sidebar {
+            width: 200px;
+            background-color: #e8e8e8;
+            border-left: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .right-sidebar-header {
+            padding: 15px;
+            background-color: #d0d0d0;
+            border-bottom: 1px solid #ccc;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        /* 主要內容區 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        /* 導航標籤 */
+        .nav-tabs {
+            display: flex;
+            background-color: #f8f8f8;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .nav-tab {
+            padding: 12px 20px;
+            background: #e8e8e8;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            cursor: pointer;
+            margin-right: 2px;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .nav-tab.active {
+            background: white;
+            border-bottom: 1px solid white;
+        }
+
+        .close-tab {
+            margin-left: 8px;
+            color: #999;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close-tab:hover {
+            color: #333;
+        }
+
+        /* 內容區域 */
+        .content-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .dashboard-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        /* Dashboard 卡片樣式 */
+        .dashboard-cards {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .dashboard-card {
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            width: 280px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            margin-right: 15px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chart-area {
+            height: 120px;
+            background: #f8f8f8;
+            border-radius: 4px;
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .trend-line {
+            position: absolute;
+            width: 100%;
+            height: 60px;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 60"><path d="M10,50 L50,40 L90,45 L130,30 L170,35 L210,25 L250,20" fill="none" stroke="%23999" stroke-width="2"/></svg>') no-repeat center;
+            background-size: contain;
+        }
+
+        .card-info {
+            background: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+
+        .detail-btn {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            float: right;
+        }
+
+        .detail-btn:hover {
+            background: #005999;
+        }
+
+        /* Sub Task 管理區域 */
+        .subtask-management {
+            display: none;
+        }
+
+        .subtask-management.active {
+            display: block;
+        }
+
+        .mode-switcher {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .mode-btn {
+            padding: 10px 20px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .mode-btn.active {
+            background: #007acc;
+            color: white;
+        }
+
+        .subtask-list {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 400px;
+            padding: 20px;
+        }
+
+        .subtask-item {
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .subtask-info {
+            flex: 1;
+        }
+
+        .subtask-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .subtask-assignee {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .subtask-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .action-btn {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .action-btn:hover {
+            background: #f0f0f0;
+        }
+
+        /* 模態框樣式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 8% auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 500px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 24px 24px 16px;
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-header .icon {
+            color: #666;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #2196f3;
+        }
+
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .form-group input::placeholder, .form-group textarea::placeholder {
+            color: #999;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #2196f3;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1976d2;
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+            border: 1px solid #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        .btn-warning {
+            background: #ff9800;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #f57c00;
+        }
+
+        /* 確認刪除模態框 */
+        .confirm-modal .modal-content {
+            width: 400px;
+        }
+
+        .confirm-modal .modal-body {
+            text-align: center;
+            padding: 32px 24px;
+        }
+
+        .confirm-icon {
+            font-size: 48px;
+            color: #f44336;
+            margin-bottom: 16px;
+        }
+
+        .confirm-message {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .confirm-submessage {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .project-tree {
+            display: none;
+        }
+
+        .project-tree.active {
+            display: block;
+        }
+
+        .tree-node {
+            margin-left: 20px;
+            margin-bottom: 10px;
+        }
+
+        .assignee-cards {
+            display: none;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .assignee-cards.active {
+            display: grid;
+        }
+
+        .assignee-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .assignee-name {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #007acc;
+        }
+
+        .task-card {
+            background: #f8f8f8;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+
+        /* 修復新增 Sub Task 模態框的樣式 */
+        #addSubTaskModal .modal-content {
+            width: 500px;
+            max-width: 90%;
+        }
+
+        #addSubTaskModal .modal-body {
+            padding: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 左側 Top Task 清單 -->
+        <div class="sidebar">
+            <div class="sidebar-header">專案列表</div>
+            <div class="task-list" id="taskList">
+                <!-- Top Tasks 會動態載入 -->
+            </div>
+            <button class="add-task-btn" onclick="openAddTaskModal()">新增專案</button>
+        </div>
+
+        <!-- 主要內容區 -->
+        <div class="main-content">
+            <!-- 導航標籤 -->
+            <div class="nav-tabs" id="navTabs">
+                <div class="nav-tab active" data-tab="home" onclick="switchTab('home')">Home</div>
+                <!-- 動態標籤會在這裡新增 -->
+            </div>
+
+            <!-- 內容區域 -->
+            <div class="content-area">
+                <!-- Home Dashboard -->
+                <div id="home-content" class="tab-content active">
+                    <div class="dashboard-title">OKR Dashboard</div>
+                    <div class="dashboard-cards" id="dashboardCards">
+                        <!-- Dashboard 卡片會動態載入 -->
+                    </div>
+                </div>
+
+                <!-- Sub Task 管理內容 -->
+                <div id="subtask-content" class="tab-content subtask-management">
+                    <div class="mode-switcher">
+                        <button class="mode-btn active" onclick="switchMode('project')">專案模式</button>
+                        <button class="mode-btn" onclick="switchMode('assignee')">負責人模式</button>
+                    </div>
+
+                    <div class="subtask-controls" style="margin-bottom: 20px;">
+                        <button class="btn btn-primary" onclick="openAddSubTaskModal()">+ 新增 Sub Task</button>
+                        <input type="text" placeholder="搜尋任務或負責人..." style="margin-left: 10px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+
+                    <!-- 專案模式視圖 -->
+                    <div id="project-view" class="project-tree active">
+                        <div class="subtask-list" id="subtaskList">
+                            <!-- Sub Tasks 會動態載入 -->
+                        </div>
+                    </div>
+
+                    <!-- 負責人模式視圖 -->
+                    <div id="assignee-view" class="assignee-cards">
+                        <!-- 負責人卡片會動態載入 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右側欄 -->
+        <div class="right-sidebar">
+            <div class="right-sidebar-header">SWB List</div>
+        </div>
+    </div>
+
+    <!-- 新增/編輯 Top Task 模態框 -->
+    <div id="addTaskModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="modalTitle">新增專案</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>專案簡稱</label>
+                    <input type="text" id="taskName" placeholder="e.g., Increase Sales">
+                </div>
+                <div class="form-group">
+                    <label>專案描述</label>
+                    <textarea id="taskDescription" placeholder="Describe the objective in detail"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>經費(單位：萬元)</label>
+                    <input type="number" id="taskBudget" placeholder="e.g., 5" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label>專案經理人</label>
+                    <input type="text" id="taskOwner" placeholder="e.g., Alex Harper">
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('addTaskModal')">取消</button>
+                    <button class="btn btn-warning" id="editBtn" onclick="updateTopTask()" style="display: none;">修改</button>
+                    <button class="btn btn-danger" id="deleteBtn" onclick="confirmDeleteTask()" style="display: none;">刪除</button>
+                    <button class="btn btn-primary" id="addBtn" onclick="addTopTask()">新建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 確認刪除模態框 -->
+    <div id="confirmDeleteModal" class="modal confirm-modal">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="confirm-icon">⚠️</div>
+                <div class="confirm-message">確認刪除專案</div>
+                <div class="confirm-submessage">此操作無法復原，確定要刪除這個專案嗎？</div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('confirmDeleteModal')">取消</button>
+                    <button class="btn btn-danger" onclick="deleteTopTask()">確認刪除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增 Sub Task 模態框 -->
+    <div id="addSubTaskModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">新增 Sub Task</div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>任務名稱</label>
+                    <input type="text" id="subTaskName" placeholder="請輸入子任務名稱">
+                </div>
+                <div class="form-group">
+                    <label>任務負責人</label>
+                    <select id="subTaskAssignee">
+                        <option value="">請選擇負責人</option>
+                        <option value="張三">張三</option>
+                        <option value="李四">李四</option>
+                        <option value="王五">王五</option>
+                        <option value="趙六">趙六</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>預估工時（小時）</label>
+                    <input type="number" id="subTaskHours" placeholder="請輸入預估工時">
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('addSubTaskModal')">取消</button>
+                    <button class="btn btn-primary" onclick="addSubTask()">新增</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全域變數
+        let topTasks = [
+            { 
+                id: 1, 
+                name: 'CSAT Customer Satisfaction', 
+                description: '提升客戶滿意度指標',
+                budget: 15.5,
+                owner: 'Alex Harper',
+                subTasks: [] 
+            },
+            { 
+                id: 2, 
+                name: 'MRR Revenue Growth', 
+                description: '增加月度經常性收入',
+                budget: 25.0,
+                owner: 'Sarah Chen',
+                subTasks: [] 
+            },
+            { 
+                id: 3, 
+                name: 'NPS Recommendation Score', 
+                description: '提升淨推薦值分數',
+                budget: 8.5,
+                owner: 'Mike Johnson',
+                subTasks: [] 
+            }
+        ];
+        let currentTopTaskId = null;
+        let currentMode = 'project';
+        let editingTaskId = null;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            renderTopTasks();
+            renderDashboard();
+        });
+
+        // 渲染 Top Tasks
+        function renderTopTasks() {
+            const container = document.getElementById('taskList');
+            container.innerHTML = '';
+            
+            topTasks.forEach((task, index) => {
+                const isActive = index === 0; // 第一個項目顯示為選中狀態
+                const taskElement = document.createElement('div');
+                taskElement.className = `task-item ${isActive ? 'active' : ''}`;
+                taskElement.innerHTML = `
+                    <div class="task-icon">${isActive ? '●' : '○'}</div>
+                    <div class="task-content">
+                        <div class="task-name">${task.name}</div>
+                    </div>
+                    <button class="task-edit-btn" onclick="event.stopPropagation(); openEditTaskModal(${task.id})">🔍</button>
+                `;
+                taskElement.onclick = () => selectTopTask(task.id);
+                container.appendChild(taskElement);
+            });
+        }
+
+        // 選擇 Top Task
+        function selectTopTask(taskId) {
+            currentTopTaskId = taskId;
+            const task = topTasks.find(t => t.id === taskId);
+            
+            // 更新左側選中狀態
+            document.querySelectorAll('.task-item').forEach((item, index) => {
+                item.classList.toggle('active', topTasks[index].id === taskId);
+                const icon = item.querySelector('.task-icon');
+                icon.textContent = topTasks[index].id === taskId ? '●' : '○';
+            });
+
+            // 新增或切換到對應標籤
+            const existingTab = document.querySelector(`[data-tab="task-${taskId}"]`);
+            if (!existingTab) {
+                addTab(task.name, `task-${taskId}`);
+            }
+            switchTab(`task-${taskId}`);
+            renderSubTasks();
+        }
+
+        // 新增標籤
+        function addTab(name, tabId) {
+            const navTabs = document.getElementById('navTabs');
+            const newTab = document.createElement('div');
+            newTab.className = 'nav-tab';
+            newTab.setAttribute('data-tab', tabId);
+            newTab.innerHTML = `${name} <span class="close-tab" onclick="event.stopPropagation(); closeTab('${tabId}')">&times;</span>`;
+            newTab.onclick = () => switchTab(tabId);
+            navTabs.appendChild(newTab);
+        }
+
+        // 切換標籤
+        function switchTab(tabId) {
+            // 更新標籤狀態
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.getAttribute('data-tab') === tabId);
+            });
+
+            // 更新內容區域
+            if (tabId === 'home') {
+                document.getElementById('home-content').style.display = 'block';
+                document.getElementById('subtask-content').style.display = 'none';
+            } else {
+                document.getElementById('home-content').style.display = 'none';
+                document.getElementById('subtask-content').style.display = 'block';
+                // 如果切換到任務標籤，確保渲染子任務
+                if (tabId.startsWith('task-')) {
+                    const taskId = parseInt(tabId.split('-')[1]);
+                    currentTopTaskId = taskId;
+                    renderSubTasks();
+                }
+            }
+        }
+
+        // 關閉標籤
+        function closeTab(tabId) {
+            const tab = document.querySelector(`[data-tab="${tabId}"]`);
+            if (tab) {
+                tab.remove();
+                // 如果關閉的是當前標籤，切換到 Home
+                if (tab.classList.contains('active')) {
+                    switchTab('home');
+                }
+            }
+        }
+
+        // 渲染 Dashboard
+        function renderDashboard() {
+            const container = document.getElementById('dashboardCards');
+            container.innerHTML = '';
+
+            topTasks.forEach(task => {
+                const completedTasks = task.subTasks.filter(st => st.status === 'completed').length;
+                const totalTasks = task.subTasks.length;
+                const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+                const cardHTML = `
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-icon">📊</div>
+                            ${task.name}
+                        </div>
+                        <div class="chart-area">
+                            <div class="trend-line"></div>
+                        </div>
+                        <div class="card-info">
+                            <div>進度資訊</div>
+                            <div>完成進度: ${progress}% (${completedTasks}/${totalTasks})</div>
+                        </div>
+                        <button class="detail-btn" onclick="selectTopTask(${task.id})">詳細資料</button>
+                    </div>
+                `;
+                container.innerHTML += cardHTML;
+            });
+        }
+
+        // 切換模式
+        function switchMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            if (mode === 'project') {
+                document.getElementById('project-view').classList.add('active');
+                document.getElementById('assignee-view').classList.remove('active');
+                renderSubTasks();
+            } else {
+                document.getElementById('project-view').classList.remove('active');
+                document.getElementById('assignee-view').classList.add('active');
+                renderAssigneeView();
+            }
+        }
+
+        // 渲染 Sub Tasks
+        function renderSubTasks() {
+            if (!currentTopTaskId) return;
+
+            const task = topTasks.find(t => t.id === currentTopTaskId);
+            const container = document.getElementById('subtaskList');
+            container.innerHTML = '';
+
+            if (task.subTasks.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; margin-top: 50px;">尚無子任務，請新增第一個子任務</p>';
+                return;
+            }
+
+            task.subTasks.forEach(subTask => {
+                const subTaskHTML = `
+                    <div class="subtask-item">
+                        <div class="subtask-info">
+                            <div class="subtask-name">${subTask.name}</div>
+                            <div class="subtask-assignee">負責人: ${subTask.assignee || '未指派'} | 預估工時: ${subTask.hours || 0}小時</div>
+                        </div>
+                        <div class="subtask-actions">
+                            <button class="action-btn" onclick="editSubTask(${subTask.id})">編輯</button>
+                            <button class="action-btn" onclick="deleteSubTask(${subTask.id})">刪除</button>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += subTaskHTML;
+            });
+        }
+
+        // 渲染負責人視圖
+        function renderAssigneeView() {
+            if (!currentTopTaskId) return;
+
+            const task = topTasks.find(t => t.id === currentTopTaskId);
+            const container = document.getElementById('assignee-view');
+            container.innerHTML = '';
+
+            // 按負責人分組
+            const assigneeGroups = {};
+            task.subTasks.forEach(subTask => {
+                const assignee = subTask.assignee || '未指派';
+                if (!assigneeGroups[assignee]) {
+                    assigneeGroups[assignee] = [];
+                }
+                assigneeGroups[assignee].push(subTask);
+            });
+
+            Object.keys(assigneeGroups).forEach(assignee => {
+                const tasks = assigneeGroups[assignee];
+                const totalHours = tasks.reduce((sum, task) => sum + (task.hours || 0), 0);
+
+                const cardHTML = `
+                    <div class="assignee-card">
+                        <div class="assignee-name">${assignee} (${totalHours}小時)</div>
+                        ${tasks.map(task => `
+                            <div class="task-card">
+                                <div style="font-weight: bold;">${task.name}</div>
+                                <div style="font-size: 12px; color: #666;">預估工時: ${task.hours || 0}小時</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                container.innerHTML += cardHTML;
+            });
+        }
+
+        // 開啟新增 Top Task 模態框
+        function openAddTaskModal() {
+            editingTaskId = null;
+            document.getElementById('modalTitle').textContent = '新增專案';
+            document.getElementById('addBtn').style.display = 'inline-block';
+            document.getElementById('editBtn').style.display = 'none';
+            document.getElementById('deleteBtn').style.display = 'none';
+            
+            // 清空表單
+            document.getElementById('taskName').value = '';
+            document.getElementById('taskDescription').value = '';
+            document.getElementById('taskBudget').value = '';
+            document.getElementById('taskOwner').value = '';
+            
+            document.getElementById('addTaskModal').style.display = 'block';
+        }
+
+        // 開啟編輯 Top Task 模態框
+        function openEditTaskModal(taskId) {
+            editingTaskId = taskId;
+            const task = topTasks.find(t => t.id === taskId);
+            
+            document.getElementById('modalTitle').textContent = '編輯專案';
+            document.getElementById('addBtn').style.display = 'none';
+            document.getElementById('editBtn').style.display = 'inline-block';
+            document.getElementById('deleteBtn').style.display = 'inline-block';
+            
+            // 填入現有資料
+            document.getElementById('taskName').value = task.name;
+            document.getElementById('taskDescription').value = task.description;
+            document.getElementById('taskBudget').value = task.budget || '';
+            document.getElementById('taskOwner').value = task.owner || '';
+            
+            document.getElementById('addTaskModal').style.display = 'block';
+        }
+
+        // 開啟新增 Sub Task 模態框
+        function openAddSubTaskModal() {
+            if (!currentTopTaskId) {
+                alert('請先選擇一個 Top Task');
+                return;
+            }
+            
+            // 清空表單
+            document.getElementById('subTaskName').value = '';
+            document.getElementById('subTaskAssignee').value = '';
+            document.getElementById('subTaskHours').value = '';
+            
+            document.getElementById('addSubTaskModal').style.display = 'block';
+        }
+
+        // 關閉模態框
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            // 只有在關閉編輯模態框時才清空 editingTaskId
+            if (modalId === 'addTaskModal') {
+                editingTaskId = null;
+            }
+        }
+
+        // 新增 Top Task
+        function addTopTask() {
+            const name = document.getElementById('taskName').value.trim();
+            const description = document.getElementById('taskDescription').value.trim();
+            const budget = parseFloat(document.getElementById('taskBudget').value) || 0;
+            const owner = document.getElementById('taskOwner').value.trim();
+
+            if (!name) {
+                alert('請輸入專案簡稱');
+                return;
+            }
+
+            const newTask = {
+                id: Date.now(),
+                name: name,
+                description: description,
+                budget: budget,
+                owner: owner,
+                subTasks: []
+            };
+
+            topTasks.push(newTask);
+            renderTopTasks();
+            renderDashboard();
+            closeModal('addTaskModal');
+        }
+
+        // 更新 Top Task
+        function updateTopTask() {
+            if (!editingTaskId) return;
+
+            const name = document.getElementById('taskName').value.trim();
+            const description = document.getElementById('taskDescription').value.trim();
+            const budget = parseFloat(document.getElementById('taskBudget').value) || 0;
+            const owner = document.getElementById('taskOwner').value.trim();
+
+            if (!name) {
+                alert('請輸入專案簡稱');
+                return;
+            }
+
+            const taskIndex = topTasks.findIndex(t => t.id === editingTaskId);
+            if (taskIndex !== -1) {
+                topTasks[taskIndex].name = name;
+                topTasks[taskIndex].description = description;
+                topTasks[taskIndex].budget = budget;
+                topTasks[taskIndex].owner = owner;
+
+                renderTopTasks();
+                renderDashboard();
+                
+                // 更新對應的標籤名稱
+                const tab = document.querySelector(`[data-tab="task-${editingTaskId}"]`);
+                if (tab) {
+                    const closeBtn = tab.querySelector('.close-tab');
+                    tab.innerHTML = `${name} <span class="close-tab" onclick="event.stopPropagation(); closeTab('task-${editingTaskId}')">&times;</span>`;
+                    tab.onclick = () => switchTab(`task-${editingTaskId}`);
+                }
+                
+                closeModal('addTaskModal');
+            }
+        }
+
+        // 確認刪除 Top Task
+        function confirmDeleteTask() {
+            if (!editingTaskId) return;
+            // 不要在這裡關閉模態框，保持 editingTaskId
+            document.getElementById('addTaskModal').style.display = 'none';
+            document.getElementById('confirmDeleteModal').style.display = 'block';
+        }
+
+        // 刪除 Top Task
+        function deleteTopTask() {
+            if (!editingTaskId) return;
+
+            const taskIndex = topTasks.findIndex(t => t.id === editingTaskId);
+            if (taskIndex !== -1) {
+                topTasks.splice(taskIndex, 1);
+                renderTopTasks();
+                renderDashboard();
+                
+                // 如果刪除的是當前選中的任務，關閉對應標籤
+                if (currentTopTaskId === editingTaskId) {
+                    closeTab(`task-${editingTaskId}`);
+                    currentTopTaskId = null;
+                }
+            }
+
+            closeModal('confirmDeleteModal');
+            editingTaskId = null;
+        }
+
+        // 新增 Sub Task
+        function addSubTask() {
+            if (!currentTopTaskId) return;
+
+            const name = document.getElementById('subTaskName').value.trim();
+            const assignee = document.getElementById('subTaskAssignee').value;
+            const hours = parseInt(document.getElementById('subTaskHours').value) || 0;
+
+            if (!name) {
+                alert('請輸入任務名稱');
+                return;
+            }
+
+            const task = topTasks.find(t => t.id === currentTopTaskId);
+            const newSubTask = {
+                id: Date.now(),
+                name: name,
+                assignee: assignee,
+                hours: hours,
+                status: 'pending'
+            };
+
+            task.subTasks.push(newSubTask);
+            renderSubTasks();
+            renderDashboard();
+            closeModal('addSubTaskModal');
+
+            // 如果當前是負責人模式，重新渲染
+            if (currentMode === 'assignee') {
+                renderAssigneeView();
+            }
+        }
+
+        // 編輯 Sub Task
+        function editSubTask(subTaskId) {
+            alert('編輯功能開發中...');
+        }
+
+        // 刪除 Sub Task
+        function deleteSubTask(subTaskId) {
+            if (!confirm('確定要刪除這個子任務嗎？')) return;
+
+            const task = topTasks.find(t => t.id === currentTopTaskId);
+            task.subTasks = task.subTasks.filter(st => st.id !== subTaskId);
+            
+            renderSubTasks();
+            renderDashboard();
+
+            if (currentMode === 'assignee') {
+                renderAssigneeView();
+            }
+        }
+
+        // 點擊模態框外部關閉
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
