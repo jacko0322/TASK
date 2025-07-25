@@ -23,6 +23,31 @@
             height: 100vh;
         }
 
+        /* Loading Spinner */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            font-size: 16px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2196f3;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         /* 左側欄 - Top Task 清單 */
         .sidebar {
             width: 280px;
@@ -346,6 +371,34 @@
             font-size: 14px;
         }
 
+        .subtask-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 5px;
+            display: inline-block;
+        }
+
+        .status-pending {
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .status-in-progress {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-on-hold {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
         .subtask-actions {
             display: flex;
             gap: 5px;
@@ -578,6 +631,16 @@
         #addSubTaskModal .modal-body {
             padding: 24px;
         }
+
+        /* 錯誤訊息樣式 */
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -586,7 +649,10 @@
         <div class="sidebar">
             <div class="sidebar-header">專案列表</div>
             <div class="task-list" id="taskList">
-                <!-- Top Tasks 會動態載入 -->
+                <div class="loading">
+                    <div class="spinner"></div>
+                    載入中...
+                </div>
             </div>
             <button class="add-task-btn" onclick="openAddTaskModal()">新增專案</button>
         </div>
@@ -605,7 +671,10 @@
                 <div id="home-content" class="tab-content active">
                     <div class="dashboard-title">OKR Dashboard</div>
                     <div class="dashboard-cards" id="dashboardCards">
-                        <!-- Dashboard 卡片會動態載入 -->
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            載入中...
+                        </div>
                     </div>
                 </div>
 
@@ -703,15 +772,18 @@
                     <label>任務負責人</label>
                     <select id="subTaskAssignee">
                         <option value="">請選擇負責人</option>
-                        <option value="張三">張三</option>
-                        <option value="李四">李四</option>
-                        <option value="王五">王五</option>
-                        <option value="趙六">趙六</option>
+                        <!-- 選項會從 mock 資料動態載入 -->
                     </select>
                 </div>
                 <div class="form-group">
                     <label>預估工時（小時）</label>
                     <input type="number" id="subTaskHours" placeholder="請輸入預估工時">
+                </div>
+                <div class="form-group">
+                    <label>任務狀態</label>
+                    <select id="subTaskStatus">
+                        <!-- 選項會從 mock 資料動態載入 -->
+                    </select>
                 </div>
                 <div class="form-actions">
                     <button class="btn btn-secondary" onclick="closeModal('addSubTaskModal')">取消</button>
@@ -723,46 +795,107 @@
 
     <script>
         // 全域變數
-        let topTasks = [
-            { 
-                id: 1, 
-                name: 'CSAT Customer Satisfaction', 
-                description: '提升客戶滿意度指標',
-                budget: 15.5,
-                owner: 'Alex Harper',
-                subTasks: [] 
-            },
-            { 
-                id: 2, 
-                name: 'MRR Revenue Growth', 
-                description: '增加月度經常性收入',
-                budget: 25.0,
-                owner: 'Sarah Chen',
-                subTasks: [] 
-            },
-            { 
-                id: 3, 
-                name: 'NPS Recommendation Score', 
-                description: '提升淨推薦值分數',
-                budget: 8.5,
-                owner: 'Mike Johnson',
-                subTasks: [] 
-            }
-        ];
+        let topTasks = [];
+        let assignees = [];
+        let taskStatuses = [];
         let currentTopTaskId = null;
         let currentMode = 'project';
         let editingTaskId = null;
 
-        // 初始化
-        document.addEventListener('DOMContentLoaded', function() {
+        // JSONP 載入方式 - 避免 CORS 問題
+        function loadMockData() {
+            // 創建 script 標籤來載入 JSONP 資料
+            const script = document.createElement('script');
+            script.src = './projects-mock-data.js'; // 注意副檔名改為 .js
+            script.onload = function() {
+                // 當 JSONP 載入完成後，資料會被設定到全域變數
+                if (typeof window.projectsData !== 'undefined') {
+                    topTasks = window.projectsData.projects || [];
+                    assignees = window.projectsData.assignees || [];
+                    taskStatuses = window.projectsData.taskStatuses || [];
+                    initializeUI();
+                } else {
+                    showErrorMessage('無法載入專案資料，請檢查 projects-mock-data.js 檔案是否存在。');
+                }
+            };
+            script.onerror = function() {
+                showErrorMessage('無法載入專案資料檔案 projects-mock-data.js，請確認檔案存在。');
+            };
+            document.head.appendChild(script);
+        }
+
+        // 顯示錯誤訊息
+        function showErrorMessage(message) {
+            const taskList = document.getElementById('taskList');
+            const dashboardCards = document.getElementById('dashboardCards');
+            
+            const errorHTML = `<div class="error-message">${message}</div>`;
+            taskList.innerHTML = errorHTML;
+            dashboardCards.innerHTML = errorHTML;
+        }
+
+        // 初始化 UI
+        function initializeUI() {
+            populateAssigneeOptions();
+            populateStatusOptions();
             renderTopTasks();
             renderDashboard();
+        }
+
+        // 填充負責人選項
+        function populateAssigneeOptions() {
+            const select = document.getElementById('subTaskAssignee');
+            select.innerHTML = '<option value="">請選擇負責人</option>';
+            
+            assignees.forEach(assignee => {
+                const option = document.createElement('option');
+                option.value = assignee.name;
+                option.textContent = `${assignee.name} (${assignee.department})`;
+                select.appendChild(option);
+            });
+        }
+
+        // 填充狀態選項
+        function populateStatusOptions() {
+            const select = document.getElementById('subTaskStatus');
+            select.innerHTML = '';
+            
+            taskStatuses.forEach(status => {
+                const option = document.createElement('option');
+                option.value = status.value;
+                option.textContent = status.label;
+                select.appendChild(option);
+            });
+            
+            // 預設選擇「待開始」
+            select.value = 'pending';
+        }
+
+        // 取得狀態標籤的樣式類別
+        function getStatusClass(status) {
+            return `status-${status}`;
+        }
+
+        // 取得狀態標籤的顯示文字
+        function getStatusLabel(status) {
+            const statusObj = taskStatuses.find(s => s.value === status);
+            return statusObj ? statusObj.label : status;
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadMockData();
         });
 
         // 渲染 Top Tasks
         function renderTopTasks() {
             const container = document.getElementById('taskList');
             container.innerHTML = '';
+            
+            if (topTasks.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">尚無專案資料</p>';
+                return;
+            }
             
             topTasks.forEach((task, index) => {
                 const isActive = index === 0; // 第一個項目顯示為選中狀態
@@ -784,6 +917,8 @@
         function selectTopTask(taskId) {
             currentTopTaskId = taskId;
             const task = topTasks.find(t => t.id === taskId);
+            
+            if (!task) return;
             
             // 更新左側選中狀態
             document.querySelectorAll('.task-item').forEach((item, index) => {
@@ -852,10 +987,16 @@
             const container = document.getElementById('dashboardCards');
             container.innerHTML = '';
 
+            if (topTasks.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; margin-top: 50px;">尚無專案資料</p>';
+                return;
+            }
+
             topTasks.forEach(task => {
                 const completedTasks = task.subTasks.filter(st => st.status === 'completed').length;
                 const totalTasks = task.subTasks.length;
                 const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                const totalHours = task.subTasks.reduce((sum, st) => sum + (st.hours || 0), 0);
 
                 const cardHTML = `
                     <div class="dashboard-card">
@@ -867,8 +1008,10 @@
                             <div class="trend-line"></div>
                         </div>
                         <div class="card-info">
-                            <div>進度資訊</div>
-                            <div>完成進度: ${progress}% (${completedTasks}/${totalTasks})</div>
+                            <div><strong>專案經理：</strong>${task.owner}</div>
+                            <div><strong>經費預算：</strong>${task.budget}萬元</div>
+                            <div><strong>完成進度：</strong>${progress}% (${completedTasks}/${totalTasks})</div>
+                            <div><strong>總預估工時：</strong>${totalHours}小時</div>
                         </div>
                         <button class="detail-btn" onclick="selectTopTask(${task.id})">詳細資料</button>
                     </div>
@@ -901,6 +1044,8 @@
             if (!currentTopTaskId) return;
 
             const task = topTasks.find(t => t.id === currentTopTaskId);
+            if (!task) return;
+            
             const container = document.getElementById('subtaskList');
             container.innerHTML = '';
 
@@ -910,11 +1055,15 @@
             }
 
             task.subTasks.forEach(subTask => {
+                const statusLabel = getStatusLabel(subTask.status);
+                const statusClass = getStatusClass(subTask.status);
+                
                 const subTaskHTML = `
                     <div class="subtask-item">
                         <div class="subtask-info">
                             <div class="subtask-name">${subTask.name}</div>
                             <div class="subtask-assignee">負責人: ${subTask.assignee || '未指派'} | 預估工時: ${subTask.hours || 0}小時</div>
+                            <div class="subtask-status ${statusClass}">${statusLabel}</div>
                         </div>
                         <div class="subtask-actions">
                             <button class="action-btn" onclick="editSubTask(${subTask.id})">編輯</button>
@@ -931,6 +1080,8 @@
             if (!currentTopTaskId) return;
 
             const task = topTasks.find(t => t.id === currentTopTaskId);
+            if (!task) return;
+            
             const container = document.getElementById('assignee-view');
             container.innerHTML = '';
 
@@ -944,19 +1095,32 @@
                 assigneeGroups[assignee].push(subTask);
             });
 
+            if (Object.keys(assigneeGroups).length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; margin-top: 50px;">尚無子任務資料</p>';
+                return;
+            }
+
             Object.keys(assigneeGroups).forEach(assignee => {
                 const tasks = assigneeGroups[assignee];
                 const totalHours = tasks.reduce((sum, task) => sum + (task.hours || 0), 0);
+                const completedTasks = tasks.filter(task => task.status === 'completed').length;
 
                 const cardHTML = `
                     <div class="assignee-card">
-                        <div class="assignee-name">${assignee} (${totalHours}小時)</div>
-                        ${tasks.map(task => `
+                        <div class="assignee-name">${assignee}</div>
+                        <div style="margin-bottom: 10px; color: #666; font-size: 14px;">
+                            總工時：${totalHours}小時 | 完成：${completedTasks}/${tasks.length}
+                        </div>
+                        ${tasks.map(task => {
+                            const statusLabel = getStatusLabel(task.status);
+                            const statusClass = getStatusClass(task.status);
+                            return `
                             <div class="task-card">
                                 <div style="font-weight: bold;">${task.name}</div>
                                 <div style="font-size: 12px; color: #666;">預估工時: ${task.hours || 0}小時</div>
+                                <div class="subtask-status ${statusClass}" style="margin-top: 4px;">${statusLabel}</div>
                             </div>
-                        `).join('')}
+                        `}).join('')}
                     </div>
                 `;
                 container.innerHTML += cardHTML;
@@ -985,6 +1149,8 @@
             editingTaskId = taskId;
             const task = topTasks.find(t => t.id === taskId);
             
+            if (!task) return;
+            
             document.getElementById('modalTitle').textContent = '編輯專案';
             document.getElementById('addBtn').style.display = 'none';
             document.getElementById('editBtn').style.display = 'inline-block';
@@ -1010,6 +1176,7 @@
             document.getElementById('subTaskName').value = '';
             document.getElementById('subTaskAssignee').value = '';
             document.getElementById('subTaskHours').value = '';
+            document.getElementById('subTaskStatus').value = 'pending';
             
             document.getElementById('addSubTaskModal').style.display = 'block';
         }
@@ -1122,6 +1289,7 @@
             const name = document.getElementById('subTaskName').value.trim();
             const assignee = document.getElementById('subTaskAssignee').value;
             const hours = parseInt(document.getElementById('subTaskHours').value) || 0;
+            const status = document.getElementById('subTaskStatus').value || 'pending';
 
             if (!name) {
                 alert('請輸入任務名稱');
@@ -1129,12 +1297,14 @@
             }
 
             const task = topTasks.find(t => t.id === currentTopTaskId);
+            if (!task) return;
+            
             const newSubTask = {
                 id: Date.now(),
                 name: name,
                 assignee: assignee,
                 hours: hours,
-                status: 'pending'
+                status: status
             };
 
             task.subTasks.push(newSubTask);
@@ -1158,6 +1328,8 @@
             if (!confirm('確定要刪除這個子任務嗎？')) return;
 
             const task = topTasks.find(t => t.id === currentTopTaskId);
+            if (!task) return;
+            
             task.subTasks = task.subTasks.filter(st => st.id !== subTaskId);
             
             renderSubTasks();
@@ -1173,6 +1345,29 @@
             if (event.target.classList.contains('modal')) {
                 event.target.style.display = 'none';
             }
+        }
+
+        // 儲存資料到 localStorage (可選功能)
+        function saveDataToLocalStorage() {
+            const data = {
+                projects: topTasks,
+                assignees: assignees,
+                taskStatuses: taskStatuses
+            };
+            localStorage.setItem('project-data', JSON.stringify(data));
+        }
+
+        // 從 localStorage 載入資料 (可選功能)
+        function loadDataFromLocalStorage() {
+            const data = localStorage.getItem('project-data');
+            if (data) {
+                const parsedData = JSON.parse(data);
+                topTasks = parsedData.projects || [];
+                assignees = parsedData.assignees || [];
+                taskStatuses = parsedData.taskStatuses || [];
+                return true;
+            }
+            return false;
         }
     </script>
 </body>
