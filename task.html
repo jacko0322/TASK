@@ -802,26 +802,29 @@
         let currentMode = 'project';
         let editingTaskId = null;
 
-        // JSONP 載入方式 - 避免 CORS 問題
-        function loadMockData() {
-            // 創建 script 標籤來載入 JSONP 資料
-            const script = document.createElement('script');
-            script.src = './projects-mock-data.js'; // 注意副檔名改為 .js
-            script.onload = function() {
-                // 當 JSONP 載入完成後，資料會被設定到全域變數
-                if (typeof window.projectsData !== 'undefined') {
-                    topTasks = window.projectsData.projects || [];
-                    assignees = window.projectsData.assignees || [];
-                    taskStatuses = window.projectsData.taskStatuses || [];
-                    initializeUI();
-                } else {
-                    showErrorMessage('無法載入專案資料，請檢查 projects-mock-data.js 檔案是否存在。');
+        // API 配置 - 你可以根據實際情況修改這個 URL
+        const API_BASE_URL = './projects-mock-data.json'; // 假設 JSON 檔案在同目錄下
+
+        // 載入 Mock 資料
+        async function loadMockData() {
+            try {
+                const response = await fetch(API_BASE_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-            };
-            script.onerror = function() {
-                showErrorMessage('無法載入專案資料檔案 projects-mock-data.js，請確認檔案存在。');
-            };
-            document.head.appendChild(script);
+                const data = await response.json();
+                
+                topTasks = data.projects || [];
+                assignees = data.assignees || [];
+                taskStatuses = data.taskStatuses || [];
+                
+                // 載入完成後初始化界面
+                initializeUI();
+                
+            } catch (error) {
+                console.error('載入資料失敗:', error);
+                showErrorMessage('無法載入專案資料，請檢查 JSON 檔案是否存在或網路連線是否正常。');
+            }
         }
 
         // 顯示錯誤訊息
