@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工時管理系統</title>
+    <title>工時管理系統 - 心智圖整合版</title>
     <style>
         * {
             margin: 0;
@@ -338,6 +338,91 @@
             color: white;
         }
 
+        /* 心智圖容器樣式 */
+        .mindmap-container {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 心智圖工具列樣式 */
+        .mindmap-toolbar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 5px;
+            padding: 0 10px;
+            border-right: 1px solid #ddd;
+            align-items: center;
+        }
+
+        .toolbar-group:last-child {
+            border-right: none;
+        }
+
+        .toolbar-btn {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .toolbar-btn:hover {
+            background: #f0f0f0;
+            border-color: #999;
+        }
+
+        .toolbar-btn.active {
+            background: #2196f3;
+            color: white;
+            border-color: #2196f3;
+        }
+
+        .toolbar-icon {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+        }
+
+        .toolbar-select {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        /* 注意：心智圖元素需要清除默認樣式 */
+        #mindMapContent * {
+            margin: 0;
+            padding: 0;
+        }
+
         .subtask-list {
             background: white;
             border: 1px solid #ddd;
@@ -641,6 +726,29 @@
             margin: 20px;
             text-align: center;
         }
+
+        /* 心智圖視圖 */
+        .mindmap-view {
+            display: none;
+        }
+
+        .mindmap-view.active {
+            display: block;
+        }
+
+        /* 小地圖容器 */
+        .minimap-container {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 200px;
+            height: 150px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 101;
+        }
     </style>
 </head>
 <body>
@@ -683,6 +791,7 @@
                     <div class="mode-switcher">
                         <button class="mode-btn active" onclick="switchMode('project')">專案模式</button>
                         <button class="mode-btn" onclick="switchMode('assignee')">負責人模式</button>
+                        <button class="mode-btn" onclick="switchMode('mindmap')">心智圖模式</button>
                     </div>
 
                     <div class="subtask-controls" style="margin-bottom: 20px;">
@@ -700,6 +809,103 @@
                     <!-- 負責人模式視圖 -->
                     <div id="assignee-view" class="assignee-cards">
                         <!-- 負責人卡片會動態載入 -->
+                    </div>
+
+                    <!-- 心智圖模式視圖 -->
+                    <div id="mindmap-view" class="mindmap-view">
+                        <div class="mindmap-container">
+                            <div class="mindmap-toolbar">
+                                <!-- 視圖控制 -->
+                                <div class="toolbar-group">
+                                    <button class="toolbar-btn" onclick="mindMapInstance && mindMapInstance.view.enlarge()">
+                                        <span>🔍</span> 放大
+                                    </button>
+                                    <button class="toolbar-btn" onclick="mindMapInstance && mindMapInstance.view.narrow()">
+                                        <span>🔍</span> 縮小
+                                    </button>
+                                    <button class="toolbar-btn" onclick="mindMapInstance && mindMapInstance.view.reset()">
+                                        <span>↺</span> 重置
+                                    </button>
+                                </div>
+                                
+                                <!-- 編輯功能 -->
+                                <div class="toolbar-group">
+                                    <button class="toolbar-btn" onclick="toggleEditMode()">
+                                        <span>✏️</span> 編輯
+                                    </button>
+                                    <button class="toolbar-btn" onclick="undoAction()">
+                                        <span>↶</span> 回退
+                                    </button>
+                                    <button class="toolbar-btn" onclick="redoAction()">
+                                        <span>↷</span> 前進
+                                    </button>
+                                </div>
+                                
+                                <!-- 節點操作 -->
+                                <div class="toolbar-group">
+                                    <button class="toolbar-btn" onclick="addChildNode()">
+                                        <span>➕</span> 子節點
+                                    </button>
+                                    <button class="toolbar-btn" onclick="addSiblingNode()">
+                                        <span>➕</span> 同級節點
+                                    </button>
+                                    <button class="toolbar-btn" onclick="deleteNode()">
+                                        <span>🗑️</span> 刪除
+                                    </button>
+                                </div>
+                                
+                                <!-- 樣式設置 -->
+                                <div class="toolbar-group">
+                                    <select class="toolbar-select" onchange="changeTheme(this.value)">
+                                        <option value="default">預設主題</option>
+                                        <option value="classic">經典主題</option>
+                                        <option value="minions">小黃人</option>
+                                        <option value="pinkGrape">粉紅葡萄</option>
+                                        <option value="mint">薄荷</option>
+                                        <option value="gold">金色</option>
+                                        <option value="vitalityOrange">活力橙</option>
+                                        <option value="greenLeaf">綠葉</option>
+                                    </select>
+                                    <select class="toolbar-select" onchange="changeLayout(this.value)">
+                                        <option value="logicalStructure">邏輯結構圖</option>
+                                        <option value="mindMap">思維導圖</option>
+                                        <option value="organizationStructure">組織結構圖</option>
+                                        <option value="catalogOrganization">目錄組織圖</option>
+                                        <option value="timeline">時間軸(豎)</option>
+                                        <option value="timeline2">時間軸(橫)</option>
+                                        <option value="fishbone">魚骨圖</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- 導出功能 -->
+                                <div class="toolbar-group">
+                                    <button class="toolbar-btn" onclick="exportMindMap('png')">
+                                        <span>🖼️</span> PNG
+                                    </button>
+                                    <button class="toolbar-btn" onclick="exportMindMap('pdf')">
+                                        <span>📄</span> PDF
+                                    </button>
+                                    <button class="toolbar-btn" onclick="exportMindMap('json')">
+                                        <span>📋</span> JSON
+                                    </button>
+                                    <button class="toolbar-btn" onclick="exportMindMap('svg')">
+                                        <span>🎨</span> SVG
+                                    </button>
+                                </div>
+                                
+                                <!-- 其他功能 -->
+                                <div class="toolbar-group">
+                                    <button class="toolbar-btn" onclick="toggleMiniMap()">
+                                        <span>🗺️</span> 小地圖
+                                    </button>
+                                    <button class="toolbar-btn" onclick="toggleFullScreen()">
+                                        <span>⛶</span> 全螢幕
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="mindMapContent" style="width: 100%; height: 100%;"></div>
+                            <div class="minimap-container" id="minimapContainer" style="display: none;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -793,7 +999,18 @@
         </div>
     </div>
 
+    <!-- 引入 simple-mind-map 核心庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/simple-mind-map@0.10.3/dist/simpleMindMap.umd.min.js"></script>
+    
     <script>
+        // 等待 DOM 載入完成
+        let SimpleMindMap = null;
+        
+        // 檢查並獲取 SimpleMindMap
+        function getSimpleMindMap() {
+    return window.simpleMindMap?.default || window.simpleMindMap || window.SimpleMindMap;
+}
+
         // 全域變數
         let topTasks = [];
         let assignees = [];
@@ -801,30 +1018,89 @@
         let currentTopTaskId = null;
         let currentMode = 'project';
         let editingTaskId = null;
+        let mindMapInstance = null;
+        let currentTheme = 'default';
+        let isEditMode = false;
+        let showMiniMap = false;
 
-        // API 配置 - 你可以根據實際情況修改這個 URL
-        const API_BASE_URL = './projects-mock-data.json'; // 假設 JSON 檔案在同目錄下
+        // API 配置
+        const API_BASE_URL = './projects-mock-data.json';
 
         // 載入 Mock 資料
         async function loadMockData() {
-            try {
-                const response = await fetch(API_BASE_URL);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+        console.log('🔍 正在 fetch：', API_BASE_URL);
+        const response = await fetch(API_BASE_URL);
+        console.log('📦 response object:', response);
+
+        const text = await response.text(); // 先取得原始字串內容
+        console.log('📄 原始內容預覽:', text.slice(0, 200)); // 看前 200 字元
+
+        // 再嘗試 parse
+        const data = JSON.parse(text); // 用 JSON.parse 明確掌控錯誤
+
+        console.log('✅ JSON 資料:', data);
+        topTasks = data.projects || [];
+        assignees = data.assignees || [];
+        taskStatuses = data.taskStatuses || [];
+        initializeUI();
+    } catch (error) {
+        console.error('❌ 載入資料失敗:', error);
+        useBuiltInData();
+    }
+}
+
+
+        // 使用內建測試資料
+        function useBuiltInData() {
+            topTasks = [
+                {
+                    id: 1,
+                    name: "CSAT Customer Satisfaction",
+                    description: "提升客戶滿意度指標",
+                    budget: 15.5,
+                    owner: "wei",
+                    subTasks: [
+                        {
+                            id: 101,
+                            name: "客戶調查問卷設計",
+                            assignee: "張三",
+                            hours: 16,
+                            status: "completed"
+                        },
+                        {
+                            id: 102,
+                            name: "滿意度數據分析",
+                            assignee: "李四",
+                            hours: 24,
+                            status: "in-progress"
+                        },
+                        {
+                            id: 103,
+                            name: "改善方案制定",
+                            assignee: "王五",
+                            hours: 32,
+                            status: "pending"
+                        }
+                    ]
                 }
-                const data = await response.json();
-                
-                topTasks = data.projects || [];
-                assignees = data.assignees || [];
-                taskStatuses = data.taskStatuses || [];
-                
-                // 載入完成後初始化界面
-                initializeUI();
-                
-            } catch (error) {
-                console.error('載入資料失敗:', error);
-                showErrorMessage('無法載入專案資料，請檢查 JSON 檔案是否存在或網路連線是否正常。');
-            }
+            ];
+            
+            assignees = [
+                { name: "張三", department: "產品部" },
+                { name: "李四", department: "數據分析部" },
+                { name: "王五", department: "策略規劃部" },
+                { name: "趙六", department: "技術部" }
+            ];
+            
+            taskStatuses = [
+                { value: "pending", label: "待開始" },
+                { value: "in-progress", label: "進行中" },
+                { value: "completed", label: "已完成" },
+                { value: "on-hold", label: "暫停" }
+            ];
+            
+            initializeUI();
         }
 
         // 顯示錯誤訊息
@@ -843,6 +1119,11 @@
             populateStatusOptions();
             renderTopTasks();
             renderDashboard();
+            
+            // 自動選擇第一個專案
+            if (topTasks.length > 0) {
+                selectTopTask(topTasks[0].id);
+            }
         }
 
         // 填充負責人選項
@@ -887,7 +1168,19 @@
 
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
-            loadMockData();
+            // 等待一下確保所有腳本載入完成
+            setTimeout(() => {
+                // 檢查 SimpleMindMap 是否載入
+                console.log('檢查 SimpleMindMap:', {
+                    SimpleMindMap: typeof SimpleMindMap !== 'undefined',
+                    simpleMindMap: typeof simpleMindMap !== 'undefined',
+                    window_SimpleMindMap: typeof window.SimpleMindMap !== 'undefined',
+                    window_simpleMindMap: typeof window.simpleMindMap !== 'undefined'
+                });
+                
+                // 載入資料
+                loadMockData();
+            }, 500);
         });
 
         // 渲染 Top Tasks
@@ -901,7 +1194,7 @@
             }
             
             topTasks.forEach((task, index) => {
-                const isActive = index === 0; // 第一個項目顯示為選中狀態
+                const isActive = task.id === currentTopTaskId;
                 const taskElement = document.createElement('div');
                 taskElement.className = `task-item ${isActive ? 'active' : ''}`;
                 taskElement.innerHTML = `
@@ -924,11 +1217,7 @@
             if (!task) return;
             
             // 更新左側選中狀態
-            document.querySelectorAll('.task-item').forEach((item, index) => {
-                item.classList.toggle('active', topTasks[index].id === taskId);
-                const icon = item.querySelector('.task-icon');
-                icon.textContent = topTasks[index].id === taskId ? '●' : '○';
-            });
+            renderTopTasks();
 
             // 新增或切換到對應標籤
             const existingTab = document.querySelector(`[data-tab="task-${taskId}"]`);
@@ -937,6 +1226,11 @@
             }
             switchTab(`task-${taskId}`);
             renderSubTasks();
+            
+            // 如果當前是心智圖模式，更新心智圖
+            if (currentMode === 'mindmap') {
+                renderMindMap();
+            }
         }
 
         // 新增標籤
@@ -969,6 +1263,11 @@
                     const taskId = parseInt(tabId.split('-')[1]);
                     currentTopTaskId = taskId;
                     renderSubTasks();
+                    
+                    // 如果是心智圖模式，重新渲染心智圖
+                    if (currentMode === 'mindmap') {
+                        renderMindMap();
+                    }
                 }
             }
         }
@@ -996,10 +1295,11 @@
             }
 
             topTasks.forEach(task => {
-                const completedTasks = task.subTasks.filter(st => st.status === 'completed').length;
-                const totalTasks = task.subTasks.length;
+                const allSubTasks = getAllSubTasks(task.subTasks);
+                const completedTasks = allSubTasks.filter(st => st.status === 'completed').length;
+                const totalTasks = allSubTasks.length;
                 const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-                const totalHours = task.subTasks.reduce((sum, st) => sum + (st.hours || 0), 0);
+                const totalHours = allSubTasks.reduce((sum, st) => sum + (st.hours || 0), 0);
 
                 const cardHTML = `
                     <div class="dashboard-card">
@@ -1023,6 +1323,18 @@
             });
         }
 
+        // 獲取所有子任務（包括嵌套的）
+        function getAllSubTasks(tasks) {
+            let allTasks = [];
+            tasks.forEach(task => {
+                allTasks.push(task);
+                if (task.children && task.children.length > 0) {
+                    allTasks = allTasks.concat(getAllSubTasks(task.children));
+                }
+            });
+            return allTasks;
+        }
+
         // 切換模式
         function switchMode(mode) {
             currentMode = mode;
@@ -1031,14 +1343,315 @@
             });
             event.target.classList.add('active');
 
+            // 隱藏所有視圖
+            document.getElementById('project-view').classList.remove('active');
+            document.getElementById('assignee-view').classList.remove('active');
+            document.getElementById('mindmap-view').classList.remove('active');
+
+            // 顯示對應視圖
             if (mode === 'project') {
                 document.getElementById('project-view').classList.add('active');
-                document.getElementById('assignee-view').classList.remove('active');
                 renderSubTasks();
-            } else {
-                document.getElementById('project-view').classList.remove('active');
+            } else if (mode === 'assignee') {
                 document.getElementById('assignee-view').classList.add('active');
                 renderAssigneeView();
+            } else if (mode === 'mindmap') {
+                document.getElementById('mindmap-view').classList.add('active');
+                renderMindMap();
+            }
+        }
+
+        // 渲染心智圖
+        async function renderMindMap() {
+            if (!currentTopTaskId) return;
+
+            const task = topTasks.find(t => t.id === currentTopTaskId);
+            if (!task) return;
+
+            // 轉換數據為心智圖格式
+            const mindMapData = convertToMindMapData(task);
+
+            // 如果已有實例，先銷毀
+            if (mindMapInstance) {
+                mindMapInstance.destroy();
+                mindMapInstance = null;
+            }
+
+            try {
+                // 獲取 SimpleMindMap 構造函數
+                const MindMapConstructor = getSimpleMindMap();
+                
+                if (!MindMapConstructor) {
+                    console.error('SimpleMindMap 未載入');
+                    // 嘗試直接使用全域變數
+                    if (typeof simpleMindMap !== 'undefined') {
+                        mindMapInstance = new simpleMindMap({
+                            el: document.getElementById('mindMapContent'),
+                            data: mindMapData
+                        });
+                    } else {
+                        throw new Error('無法找到 SimpleMindMap 構造函數');
+                    }
+                } else {
+                    // 創建新的心智圖實例
+                    mindMapInstance = new MindMapConstructor({
+                        el: document.getElementById('mindMapContent'),
+                        data: mindMapData,
+                        theme: currentTheme,
+                        layout: 'logicalStructure',
+                        scaleRatio: 0.1,
+                        expandBtnSize: 20,
+                        readonly: !isEditMode
+                    });
+                }
+
+                // 綁定事件
+                bindMindMapEvents();
+                
+                console.log('心智圖創建成功');
+            } catch (error) {
+                console.error('創建心智圖失敗:', error);
+                // 顯示錯誤訊息
+                document.getElementById('mindMapContent').innerHTML = `
+                    <div style="text-align: center; padding: 50px; color: #666;">
+                        <h3>心智圖載入失敗</h3>
+                        <p>請確認網路連線正常，或嘗試重新整理頁面</p>
+                        <p style="font-size: 12px; color: #999;">錯誤訊息：${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 綁定心智圖事件
+        function bindMindMapEvents() {
+            if (!mindMapInstance) return;
+
+            // 節點點擊事件
+            mindMapInstance.on('node_click', (node) => {
+                console.log('節點點擊:', node);
+            });
+
+            // 節點雙擊事件 - 編輯節點
+            mindMapInstance.on('node_dblclick', (node) => {
+                if (isEditMode) {
+                    console.log('編輯節點:', node);
+                }
+            });
+
+            // 數據變化事件
+            mindMapInstance.on('data_change', (data) => {
+                console.log('數據變化:', data);
+                // 這裡可以同步更新原始數據
+                syncDataFromMindMap(data);
+            });
+
+            // 節點激活事件
+            mindMapInstance.on('node_active', (node, activeNodeList) => {
+                console.log('激活節點:', node);
+            });
+        }
+
+        // 轉換數據為心智圖格式
+        function convertToMindMapData(task) {
+            // 遞歸轉換子任務
+            function convertSubTasks(subTasks, parentType = '') {
+                return subTasks.map(subTask => {
+                    const children = subTask.children ? convertSubTasks(subTask.children, subTask.status) : [];
+                    
+                    return {
+                        data: {
+                            text: subTask.name,
+                            expand: true,
+                            note: `負責人: ${subTask.assignee}\n預估工時: ${subTask.hours}小時\n狀態: ${getStatusLabel(subTask.status)}`,
+                            hyperlink: subTask.link || '',
+                            backgroundColor: getStatusColor(subTask.status),
+                            // 添加更多樣式
+                            fontSize: 14,
+                            color: '#333',
+                            borderColor: getStatusBorderColor(subTask.status),
+                            borderWidth: 2,
+                            borderRadius: 5
+                        },
+                        children: children
+                    };
+                });
+            }
+
+            return {
+                data: {
+                    text: task.name,
+                    expand: true,
+                    isActive: true,
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    backgroundColor: '#4287f5',
+                    color: '#fff'
+                },
+                children: convertSubTasks(task.subTasks)
+            };
+        }
+
+        // 獲取狀態顏色
+        function getStatusColor(status) {
+            const colorMap = {
+                'pending': '#f0f0f0',
+                'in-progress': '#fff3cd',
+                'completed': '#d4edda',
+                'on-hold': '#f8d7da'
+            };
+            return colorMap[status] || '#f0f0f0';
+        }
+
+        // 獲取狀態邊框顏色
+        function getStatusBorderColor(status) {
+            const colorMap = {
+                'pending': '#666',
+                'in-progress': '#856404',
+                'completed': '#155724',
+                'on-hold': '#721c24'
+            };
+            return colorMap[status] || '#666';
+        }
+
+        // 同步心智圖數據到原始數據
+        function syncDataFromMindMap(mindMapData) {
+            // 這裡實現將心智圖的修改同步回原始數據結構
+            // 實際項目中需要根據具體需求實現
+            console.log('同步數據:', mindMapData);
+        }
+
+        // 切換編輯模式
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            if (mindMapInstance) {
+                mindMapInstance.updateConfig({
+                    readonly: !isEditMode
+                });
+            }
+            
+            // 更新按鈕狀態
+            const editBtn = event.target;
+            editBtn.classList.toggle('active', isEditMode);
+        }
+
+        // 撤銷
+        function undoAction() {
+            if (mindMapInstance && mindMapInstance.command) {
+                mindMapInstance.command.back();
+            }
+        }
+
+        // 重做
+        function redoAction() {
+            if (mindMapInstance && mindMapInstance.command) {
+                mindMapInstance.command.forward();
+            }
+        }
+
+        // 添加子節點
+        function addChildNode() {
+            if (mindMapInstance && mindMapInstance.renderer.activeNodeList.length > 0) {
+                mindMapInstance.execCommand('INSERT_CHILD_NODE');
+            } else {
+                alert('請先選擇一個節點');
+            }
+        }
+
+        // 添加同級節點
+        function addSiblingNode() {
+            if (mindMapInstance && mindMapInstance.renderer.activeNodeList.length > 0) {
+                mindMapInstance.execCommand('INSERT_NODE');
+            } else {
+                alert('請先選擇一個節點');
+            }
+        }
+
+        // 刪除節點
+        function deleteNode() {
+            if (mindMapInstance && mindMapInstance.renderer.activeNodeList.length > 0) {
+                if (confirm('確定要刪除選中的節點嗎？')) {
+                    mindMapInstance.execCommand('REMOVE_NODE');
+                }
+            } else {
+                alert('請先選擇要刪除的節點');
+            }
+        }
+
+        // 切換主題
+        function changeTheme(theme) {
+            currentTheme = theme;
+            if (mindMapInstance) {
+                mindMapInstance.setTheme(theme);
+            }
+        }
+
+        // 切換佈局
+        function changeLayout(layout) {
+            if (mindMapInstance) {
+                mindMapInstance.setLayout(layout);
+            }
+        }
+
+        // 導出心智圖
+        async function exportMindMap(type) {
+            if (!mindMapInstance) return;
+
+            try {
+                switch (type) {
+                    case 'png':
+                        const pngDataUrl = await mindMapInstance.exportPng();
+                        const link = document.createElement('a');
+                        link.href = pngDataUrl;
+                        link.download = `mindmap_${Date.now()}.png`;
+                        link.click();
+                        break;
+                    case 'pdf':
+                        alert('PDF 導出功能開發中');
+                        break;
+                    case 'svg':
+                        const svgData = await mindMapInstance.exportSvg();
+                        const svgBlob = new Blob([svgData], { type: 'image/svg+xml' });
+                        const svgUrl = URL.createObjectURL(svgBlob);
+                        const svgLink = document.createElement('a');
+                        svgLink.href = svgUrl;
+                        svgLink.download = `mindmap_${Date.now()}.svg`;
+                        svgLink.click();
+                        URL.revokeObjectURL(svgUrl);
+                        break;
+                    case 'json':
+                        const data = mindMapInstance.getData();
+                        const json = JSON.stringify(data, null, 2);
+                        const blob = new Blob([json], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `mindmap_${Date.now()}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        break;
+                }
+            } catch (error) {
+                console.error('導出失敗:', error);
+                alert('導出失敗，請稍後再試');
+            }
+        }
+
+        // 切換小地圖
+        function toggleMiniMap() {
+            showMiniMap = !showMiniMap;
+            const minimapContainer = document.getElementById('minimapContainer');
+            minimapContainer.style.display = showMiniMap ? 'block' : 'none';
+        }
+
+        // 切換全螢幕
+        function toggleFullScreen() {
+            const container = document.querySelector('.mindmap-container');
+            if (!document.fullscreenElement) {
+                container.requestFullscreen().catch(err => {
+                    alert(`無法進入全螢幕模式: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
             }
         }
 
@@ -1057,16 +1670,18 @@
                 return;
             }
 
-            task.subTasks.forEach(subTask => {
+            // 遞歸渲染子任務
+            function renderTaskItem(subTask, level = 0) {
                 const statusLabel = getStatusLabel(subTask.status);
                 const statusClass = getStatusClass(subTask.status);
                 
                 const subTaskHTML = `
-                    <div class="subtask-item">
+                    <div class="subtask-item" style="margin-left: ${level * 20}px;">
                         <div class="subtask-info">
                             <div class="subtask-name">${subTask.name}</div>
                             <div class="subtask-assignee">負責人: ${subTask.assignee || '未指派'} | 預估工時: ${subTask.hours || 0}小時</div>
                             <div class="subtask-status ${statusClass}">${statusLabel}</div>
+                            ${subTask.link ? `<a href="${subTask.link}" target="_blank" style="font-size: 12px;">📎 相關文件</a>` : ''}
                         </div>
                         <div class="subtask-actions">
                             <button class="action-btn" onclick="editSubTask(${subTask.id})">編輯</button>
@@ -1075,6 +1690,17 @@
                     </div>
                 `;
                 container.innerHTML += subTaskHTML;
+                
+                // 渲染子任務的子任務
+                if (subTask.children && subTask.children.length > 0) {
+                    subTask.children.forEach(child => {
+                        renderTaskItem(child, level + 1);
+                    });
+                }
+            }
+
+            task.subTasks.forEach(subTask => {
+                renderTaskItem(subTask);
             });
         }
 
@@ -1088,9 +1714,12 @@
             const container = document.getElementById('assignee-view');
             container.innerHTML = '';
 
+            // 獲取所有任務（包括嵌套的）
+            const allTasks = getAllSubTasks(task.subTasks);
+
             // 按負責人分組
             const assigneeGroups = {};
-            task.subTasks.forEach(subTask => {
+            allTasks.forEach(subTask => {
                 const assignee = subTask.assignee || '未指派';
                 if (!assigneeGroups[assignee]) {
                     assigneeGroups[assignee] = [];
@@ -1171,7 +1800,7 @@
         // 開啟新增 Sub Task 模態框
         function openAddSubTaskModal() {
             if (!currentTopTaskId) {
-                alert('請先選擇一個 Top Task');
+                alert('請先選擇一個專案');
                 return;
             }
             
@@ -1253,6 +1882,11 @@
                 }
                 
                 closeModal('addTaskModal');
+                
+                // 如果是當前選中的任務且在心智圖模式，重新渲染
+                if (currentTopTaskId === editingTaskId && currentMode === 'mindmap') {
+                    renderMindMap();
+                }
             }
         }
 
@@ -1307,10 +1941,18 @@
                 name: name,
                 assignee: assignee,
                 hours: hours,
-                status: status
+                status: status,
+                children: []
             };
 
-            task.subTasks.push(newSubTask);
+            // 如果心智圖有選中節點，添加為該節點的子任務
+            if (mindMapInstance && mindMapInstance.renderer.activeNodeList.length > 0 && currentMode === 'mindmap') {
+                // 這裡簡化處理，實際應該根據選中的節點ID找到對應的任務
+                task.subTasks.push(newSubTask);
+            } else {
+                task.subTasks.push(newSubTask);
+            }
+
             renderSubTasks();
             renderDashboard();
             closeModal('addSubTaskModal');
@@ -1318,28 +1960,47 @@
             // 如果當前是負責人模式，重新渲染
             if (currentMode === 'assignee') {
                 renderAssigneeView();
+            } else if (currentMode === 'mindmap') {
+                renderMindMap();
             }
         }
 
         // 編輯 Sub Task
         function editSubTask(subTaskId) {
             alert('編輯功能開發中...');
+            // 實際項目中這裡應該打開編輯模態框，允許修改任務信息
         }
 
-        // 刪除 Sub Task
+        // 刪除 Sub Task（支援嵌套結構）
         function deleteSubTask(subTaskId) {
             if (!confirm('確定要刪除這個子任務嗎？')) return;
 
             const task = topTasks.find(t => t.id === currentTopTaskId);
             if (!task) return;
             
-            task.subTasks = task.subTasks.filter(st => st.id !== subTaskId);
+            // 遞歸刪除函數
+            function removeSubTask(tasks) {
+                for (let i = 0; i < tasks.length; i++) {
+                    if (tasks[i].id === subTaskId) {
+                        tasks.splice(i, 1);
+                        return true;
+                    }
+                    if (tasks[i].children && removeSubTask(tasks[i].children)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            removeSubTask(task.subTasks);
             
             renderSubTasks();
             renderDashboard();
 
             if (currentMode === 'assignee') {
                 renderAssigneeView();
+            } else if (currentMode === 'mindmap') {
+                renderMindMap();
             }
         }
 
@@ -1350,7 +2011,7 @@
             }
         }
 
-        // 儲存資料到 localStorage (可選功能)
+        // 儲存資料到 localStorage
         function saveDataToLocalStorage() {
             const data = {
                 projects: topTasks,
@@ -1360,7 +2021,7 @@
             localStorage.setItem('project-data', JSON.stringify(data));
         }
 
-        // 從 localStorage 載入資料 (可選功能)
+        // 從 localStorage 載入資料
         function loadDataFromLocalStorage() {
             const data = localStorage.getItem('project-data');
             if (data) {
@@ -1372,6 +2033,27 @@
             }
             return false;
         }
+
+        // 監聽鍵盤事件
+        document.addEventListener('keydown', function(e) {
+            if (currentMode === 'mindmap' && mindMapInstance) {
+                // Tab 鍵：添加子節點
+                if (e.key === 'Tab' && !e.shiftKey) {
+                    e.preventDefault();
+                    addChildNode();
+                }
+                // Enter 鍵：添加同級節點
+                else if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    addSiblingNode();
+                }
+                // Delete 鍵：刪除節點
+                else if (e.key === 'Delete') {
+                    e.preventDefault();
+                    deleteNode();
+                }
+            }
+        });
     </script>
 </body>
 </html>

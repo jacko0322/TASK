@@ -5,7 +5,7 @@
       "name": "CSAT Customer Satisfaction",
       "description": "提升客戶滿意度指標",
       "budget": 15.5,
-      "owner": "jian",
+      "owner": "wei",
       "subTasks": [
         {
           "id": 101,
