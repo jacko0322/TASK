@@ -785,6 +785,53 @@
     overflow: hidden;
 }
 
+.minimap-container svg text {
+    font-family: Arial, "Microsoft JhengHei", sans-serif !important;
+    font-size: 10px !important;
+    font-weight: bold !important;
+    fill: #333 !important;
+    stroke: none !important;
+    text-anchor: middle !important;
+    dominant-baseline: middle !important;
+}
+
+/* 白色背景上的文字使用深色 */
+.minimap-container svg rect[fill="#fff"] + text,
+.minimap-container svg rect[fill="white"] + text {
+    fill: #333 !important;
+    stroke: rgba(255, 255, 255, 0.8) !important;
+    stroke-width: 2px !important;
+    paint-order: stroke fill !important;
+}
+
+/* 深色背景上的文字使用淺色 */
+.minimap-container svg rect[fill="#4287f5"] + text,
+.minimap-container svg rect[fill*="blue"] + text {
+    fill: #fff !important;
+    stroke: rgba(0, 0, 0, 0.3) !important;
+    stroke-width: 1px !important;
+    paint-order: stroke fill !important;
+}
+
+/* Dashboard 小地圖特殊樣式 */
+.mini-mindmap svg text {
+    font-family: Arial, "Microsoft JhengHei", sans-serif !important;
+    font-size: 8px !important;
+    font-weight: bold !important;
+    fill: #333 !important;
+}
+
+/* 確保小地圖容器不裁剪文字 */
+.minimap-container,
+.mini-mindmap {
+    overflow: visible !important;
+}
+
+.minimap-container svg,
+.mini-mindmap svg {
+    overflow: visible !important;
+}
+
 .minimap-content-wrapper {
     position: relative;
     width: 100%;
@@ -1155,35 +1202,32 @@
   });
 </script>
 
-    <script>
-        // 等待 DOM 載入完成
+  <script>
+        // 全域變數
         let SimpleMindMap = null;
         let MiniMap = null;
         let Select = null;
         let Drag = null;
         let Export = null;
         
-        // 全域變數
         let topTasks = [];
         let assignees = [];
         let taskStatuses = [];
         let currentTopTaskId = null;
         let currentMode = 'project';
         let editingTaskId = null;
-        let editingSubTaskId = null; // 新增：追蹤正在編輯的子任務
-        let editingNodeData = null; // 新增：追蹤正在編輯的節點數據
+        let editingSubTaskId = null;
+        let editingNodeData = null;
         let mindMapInstance = null;
         let currentTheme = 'default';
         let isEditMode = false;
         let showMiniMap = false;
-        let miniMindMaps = {}; // 儲存縮圖心智圖實例
+        let miniMindMaps = {};
 
         // 小地圖相關變數
-        let miniMapData = null;
         let isDraggingViewBox = false;
         let miniMapContainer = null;
         let viewBoxContainer = null;
-        let withTransition = true;
 
         // API 配置
         const API_BASE_URL = './projects-mock-data.json';
@@ -1207,232 +1251,97 @@
                 initializeUI();
             } catch (error) {
                 console.error('❌ 載入資料失敗:', error);
-                useBuiltInData();
+                // 直接初始化空資料
+                topTasks = [];
+                assignees = [
+                    { name: "張三", department: "產品部" },
+                    { name: "李四", department: "數據分析部" },
+                    { name: "王五", department: "策略規劃部" },
+                    { name: "趙六", department: "技術部" }
+                ];
+                taskStatuses = [
+                    { value: "pending", label: "待開始" },
+                    { value: "in-progress", label: "進行中" },
+                    { value: "completed", label: "已完成" },
+                    { value: "on-hold", label: "暫停" }
+                ];
+                initializeUI();
             }
-        }
-
-        // 使用內建測試資料
-        function useBuiltInData() {
-            topTasks = [
-                {
-                    id: 1,
-                    name: "CSAT Customer Satisfaction",
-                    description: "提升客戶滿意度指標",
-                    budget: 15.5,
-                    owner: "wei",
-                    subTasks: [
-                        {
-                            id: 101,
-                            name: "客戶調查問卷設計",
-                            assignee: "張三",
-                            hours: 16,
-                            status: "completed",
-                            children: [
-                                {
-                                    id: 1011,
-                                    name: "問卷題目設計",
-                                    assignee: "張三",
-                                    hours: 8,
-                                    status: "completed"
-                                },
-                                {
-                                    id: 1012,
-                                    name: "問卷系統開發",
-                                    assignee: "趙六",
-                                    hours: 8,
-                                    status: "completed"
-                                }
-                            ]
-                        },
-                        {
-                            id: 102,
-                            name: "滿意度數據分析",
-                            assignee: "李四",
-                            hours: 24,
-                            status: "in-progress",
-                            children: [
-                                {
-                                    id: 1021,
-                                    name: "數據收集",
-                                    assignee: "李四",
-                                    hours: 12,
-                                    status: "completed"
-                                },
-                                {
-                                    id: 1022,
-                                    name: "統計分析報告",
-                                    assignee: "李四",
-                                    hours: 12,
-                                    status: "in-progress"
-                                }
-                            ]
-                        },
-                        {
-                            id: 103,
-                            name: "改善方案制定",
-                            assignee: "王五",
-                            hours: 32,
-                            status: "pending"
-                        }
-                    ]
-                },
-                {
-                    id: 2,
-                    name: "MRR Revenue Growth",
-                    description: "每月經常性收入成長計畫",
-                    budget: 25,
-                    owner: "Sarah Chen",
-                    subTasks: [
-                        {
-                            id: 201,
-                            name: "訂價策略優化",
-                            assignee: "李四",
-                            hours: 40,
-                            status: "in-progress"
-                        },
-                        {
-                            id: 202,
-                            name: "銷售流程改善",
-                            assignee: "王五",
-                            hours: 48,
-                            status: "pending"
-                        },
-                        {
-                            id: 203,
-                            name: "客戶續約計畫",
-                            assignee: "張三",
-                            hours: 56,
-                            status: "pending"
-                        }
-                    ]
-                },
-                {
-                    id: 3,
-                    name: "NPS Recommendation Score",
-                    description: "淨推薦值提升專案",
-                    budget: 8.5,
-                    owner: "Mike Johnson",
-                    subTasks: [
-                        {
-                            id: 301,
-                            name: "客戶體驗優化",
-                            assignee: "趙六",
-                            hours: 32,
-                            status: "completed"
-                        },
-                        {
-                            id: 302,
-                            name: "產品功能改進",
-                            assignee: "張三",
-                            hours: 36,
-                            status: "in-progress"
-                        }
-                    ]
-                }
-            ];
-            
-            assignees = [
-                { name: "張三", department: "產品部" },
-                { name: "李四", department: "數據分析部" },
-                { name: "王五", department: "策略規劃部" },
-                { name: "趙六", department: "技術部" }
-            ];
-            
-            taskStatuses = [
-                { value: "pending", label: "待開始" },
-                { value: "in-progress", label: "進行中" },
-                { value: "completed", label: "已完成" },
-                { value: "on-hold", label: "暫停" }
-            ];
-            
-            initializeUI();
         }
 
         // 初始化 UI
-          function initializeUI() {
-    console.log('開始初始化 UI...');
-    console.log('window.simpleMindMap:', window.simpleMindMap);
-    console.log('window.SimpleMindMap:', window.SimpleMindMap);
-    
-    // 檢查 SimpleMindMap 是否載入
-    let MindMapClass = null;
-    if (window.simpleMindMap) {
-        MindMapClass = window.simpleMindMap.default || window.simpleMindMap;
-    } else if (window.SimpleMindMap) {
-        MindMapClass = window.SimpleMindMap.default || window.SimpleMindMap;
-    }
-    
-    if (MindMapClass) {
-        SimpleMindMap = MindMapClass;
-        console.log('✅ SimpleMindMap 載入成功');
-        
-        // 註冊插件
-        const plugins = [];
-        
-        // 詳細檢查 MiniMap 插件
-        console.log('檢查所有 window 對象中的 MiniMap 相關:', Object.keys(window).filter(key => key.toLowerCase().includes('mini')));
-        
-        if (window.MiniMap) {
-            const MiniMapPlugin = window.MiniMap.default || window.MiniMap;
-            plugins.push(MiniMapPlugin);
-            MiniMap = MiniMapPlugin;
-            console.log('✅ MiniMap 插件準備註冊');
-        } else {
-            console.log('⚠️ window.MiniMap 未找到，小地圖可能無法使用');
-        }
-        
-        // 其他插件註冊...
-        if (window.Select) {
-            const SelectPlugin = window.Select.default || window.Select;
-            plugins.push(SelectPlugin);
-            Select = SelectPlugin;
-            console.log('✅ Select 插件準備註冊');
-        }
-        
-        if (window.Drag) {
-            const DragPlugin = window.Drag.default || window.Drag;
-            plugins.push(DragPlugin);
-            Drag = DragPlugin;
-            console.log('✅ Drag 插件準備註冊');
-        }
-        
-        if (window.Export) {
-            const ExportPlugin = window.Export.default || window.Export;
-            plugins.push(ExportPlugin);
-            Export = ExportPlugin;
-            console.log('✅ Export 插件準備註冊');
-        }
-        
-        // 一次性註冊所有插件
-        if (plugins.length > 0 && SimpleMindMap.usePlugin) {
-            try {
-                SimpleMindMap.usePlugin(...plugins);
-                console.log(`✅ 成功註冊 ${plugins.length} 個插件`);
-            } catch (error) {
-                console.error('❌ 插件註冊失敗:', error);
+        function initializeUI() {
+            console.log('開始初始化 UI...');
+            
+            // 檢查 SimpleMindMap 是否載入
+            let MindMapClass = null;
+            if (window.simpleMindMap) {
+                MindMapClass = window.simpleMindMap.default || window.simpleMindMap;
+            } else if (window.SimpleMindMap) {
+                MindMapClass = window.SimpleMindMap.default || window.SimpleMindMap;
             }
+            
+            if (MindMapClass) {
+                SimpleMindMap = MindMapClass;
+                console.log('✅ SimpleMindMap 載入成功');
+                
+                // 註冊插件
+                const plugins = [];
+                
+                if (window.MiniMap) {
+                    const MiniMapPlugin = window.MiniMap.default || window.MiniMap;
+                    plugins.push(MiniMapPlugin);
+                    MiniMap = MiniMapPlugin;
+                    console.log('✅ MiniMap 插件準備註冊');
+                }
+                
+                if (window.Select) {
+                    const SelectPlugin = window.Select.default || window.Select;
+                    plugins.push(SelectPlugin);
+                    Select = SelectPlugin;
+                    console.log('✅ Select 插件準備註冊');
+                }
+                
+                if (window.Drag) {
+                    const DragPlugin = window.Drag.default || window.Drag;
+                    plugins.push(DragPlugin);
+                    Drag = DragPlugin;
+                    console.log('✅ Drag 插件準備註冊');
+                }
+                
+                if (window.Export) {
+                    const ExportPlugin = window.Export.default || window.Export;
+                    plugins.push(ExportPlugin);
+                    Export = ExportPlugin;
+                    console.log('✅ Export 插件準備註冊');
+                }
+                
+                // 註冊所有插件
+                if (plugins.length > 0 && SimpleMindMap.usePlugin) {
+                    try {
+                        SimpleMindMap.usePlugin(...plugins);
+                        console.log(`✅ 成功註冊 ${plugins.length} 個插件`);
+                    } catch (error) {
+                        console.error('❌ 插件註冊失敗:', error);
+                    }
+                }
+            } else {
+                console.error('❌ SimpleMindMap 未載入');
+            }
+            
+            populateAssigneeOptions();
+            populateStatusOptions();
+            renderTopTasks();
+            renderDashboard();
+            switchTab('home');
+            currentTopTaskId = null;
         }
-        
-    } else {
-        console.error('❌ SimpleMindMap 未載入');
-    }
-    
-    // 繼續其他初始化
-    populateAssigneeOptions();
-    populateStatusOptions();
-    renderTopTasks();
-    renderDashboard();
-    
-    // ✅ 確保預設顯示 Home 頁面
-    switchTab('home');
-    currentTopTaskId = null; // 清空當前選中的專案
-}
+
         // 搜尋功能
         function handleSearch() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             
             if (currentMode === 'project') {
-                // 專案模式下搜尋任務
                 const subtaskItems = document.querySelectorAll('.subtask-item');
                 subtaskItems.forEach(item => {
                     const taskName = item.querySelector('.subtask-name').textContent.toLowerCase();
@@ -1445,7 +1354,6 @@
                     }
                 });
             } else if (currentMode === 'assignee') {
-                // 負責人模式下搜尋
                 const assigneeCards = document.querySelectorAll('.assignee-card');
                 assigneeCards.forEach(card => {
                     const assigneeName = card.querySelector('.assignee-name').textContent.toLowerCase();
@@ -1468,466 +1376,392 @@
             }
         }
 
-        // 渲染 Dashboard 卡片及縮圖
+        // 渲染 Dashboard 卡片
         function renderDashboard() {
-    const container = document.getElementById('dashboardCards');
-    if (!container) return;
-    
-    container.innerHTML = '';
+            const container = document.getElementById('dashboardCards');
+            if (!container) return;
+            
+            container.innerHTML = '';
 
-    if (topTasks.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #666; margin-top: 50px;">尚無專案資料</p>';
-        return;
-    }
-
-    topTasks.forEach(task => {
-        // 安全地計算統計數據
-        const allSubTasks = getAllSubTasks(task.subTasks || []);
-        const completedTasks = allSubTasks.filter(st => st.status === 'completed').length;
-        const totalTasks = allSubTasks.length;
-        const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-        const totalHours = allSubTasks.reduce((sum, st) => sum + (st.hours || 0), 0);
-
-        const cardDiv = document.createElement('div');
-        cardDiv.className = 'dashboard-card';
-        cardDiv.innerHTML = `
-            <div class="card-header">
-                <div class="card-icon">📊</div>
-                ${task.name || '未命名專案'}
-            </div>
-            <div class="chart-area">
-                <div id="minimap-${task.id}" class="mini-mindmap" style="width: 100%; height: 100%;">
-                    <div style="text-align: center; padding: 20px; color: #999;">載入中...</div>
-                </div>
-            </div>
-            <div class="card-info">
-                <div><strong>專案經理：</strong>${task.owner || '未指派'}</div>
-                <div><strong>經費預算：</strong>${task.budget || 0}萬元</div>
-                <div><strong>完成進度：</strong>${progress}% (${completedTasks}/${totalTasks})</div>
-                <div><strong>總預估工時：</strong>${totalHours}小時</div>
-            </div>
-            <button class="detail-btn" onclick="selectTopTask(${task.id})">詳細資料</button>
-        `;
-        container.appendChild(cardDiv);
-    });
-
-    // 確保所有卡片都已渲染到 DOM
-    setTimeout(() => {
-        topTasks.forEach(task => {
-            const minimapContainer = document.getElementById(`minimap-${task.id}`);
-            if (minimapContainer) {
-                console.log(`準備為任務 ${task.id} 創建小地圖`);
-                renderMiniMindMap(task, `minimap-${task.id}`);
+            if (topTasks.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; margin-top: 50px;">尚無專案資料</p>';
+                return;
             }
-        });
-    }, 500);  // 延遲500ms確保DOM渲染完成
-}
+
+            topTasks.forEach(task => {
+                const allSubTasks = getAllSubTasks(task.subTasks || []);
+                const completedTasks = allSubTasks.filter(st => st.status === 'completed').length;
+                const totalTasks = allSubTasks.length;
+                const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                const totalHours = allSubTasks.reduce((sum, st) => sum + (st.hours || 0), 0);
+
+                const cardDiv = document.createElement('div');
+                cardDiv.className = 'dashboard-card';
+                cardDiv.innerHTML = `
+                    <div class="card-header">
+                        <div class="card-icon">📊</div>
+                        ${task.name || '未命名專案'}
+                    </div>
+                    <div class="chart-area">
+                        <div id="minimap-${task.id}" class="mini-mindmap" style="width: 100%; height: 100%;">
+                            <div style="text-align: center; padding: 20px; color: #999;">載入中...</div>
+                        </div>
+                    </div>
+                    <div class="card-info">
+                        <div><strong>專案經理：</strong>${task.owner || '未指派'}</div>
+                        <div><strong>經費預算：</strong>${task.budget || 0}萬元</div>
+                        <div><strong>完成進度：</strong>${progress}% (${completedTasks}/${totalTasks})</div>
+                        <div><strong>總預估工時：</strong>${totalHours}小時</div>
+                    </div>
+                    <button class="detail-btn" onclick="selectTopTask(${task.id})">詳細資料</button>
+                `;
+                container.appendChild(cardDiv);
+            });
+
+            // 渲染小地圖
+            setTimeout(() => {
+                topTasks.forEach(task => {
+                    const minimapContainer = document.getElementById(`minimap-${task.id}`);
+                    if (minimapContainer) {
+                        renderMiniMindMap(task, `minimap-${task.id}`);
+                    }
+                });
+            }, 500);
+        }
 
         // 渲染縮圖心智圖
         function renderMiniMindMap(task, containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) {
-        console.log('無法找到容器:', containerId);
-        return;
-    }
+            const container = document.getElementById(containerId);
+            if (!container) return;
 
-    // 強制檢查容器尺寸，多次重試
-    const checkSizeAndCreate = (retryCount = 0) => {
-        const width = container.offsetWidth;
-        const height = container.offsetHeight;
-        
-        console.log(`檢查容器尺寸 (第${retryCount + 1}次):`, { width, height, containerId });
-        
-        if (width === 0 || height === 0) {
-            if (retryCount < 5) {  // 最多重試5次
-                console.log(`容器尺寸為 0，${500 * (retryCount + 1)}ms 後重試...`);
-                setTimeout(() => checkSizeAndCreate(retryCount + 1), 500 * (retryCount + 1));
-                return;
-            } else {
-                console.log('重試次數已達上限，使用備用方案');
-                createFallbackSvg(container, task);
-                return;
-            }
-        }
-
-        // 尺寸正常，開始創建
-        createMiniMapWithValidSize(container, task, width, height);
-    };
-
-    checkSizeAndCreate();
-}
-
-function createMiniMapWithValidSize(container, task, width, height) {
-    console.log('開始創建心智圖，容器尺寸:', { width, height });
-    
-    container.innerHTML = '';
-    
-    // 創建完整的心智圖容器
-    const fullContainer = document.createElement('div');
-    fullContainer.style.cssText = `
-        width: 100%;
-        height: 100%;
-        position: relative;
-        min-width: ${width}px;
-        min-height: ${height}px;
-    `;
-    
-    // 主心智圖容器（隱藏）
-    const mindMapDiv = document.createElement('div');
-    mindMapDiv.style.cssText = `
-        width: 100%;
-        height: 100%;
-        position: absolute;
-        opacity: 0;
-        pointer-events: none;
-        min-width: ${width}px;
-        min-height: ${height}px;
-    `;
-    
-    // 小地圖容器（顯示）
-    const miniMapDiv = document.createElement('div');
-    miniMapDiv.innerHTML = `
-        <div class="minimap-content-wrapper" style="position: relative; width: 100%; height: 100%; cursor: pointer;">
-            <div class="minimap-svg-container" style="position: absolute; transform-origin: left top; width: 100%; height: 100%;"></div>
-            <div class="minimap-viewport" style="position: absolute; border: 2px solid #2196f3; background: rgba(33, 150, 243, 0.1); transition: all 0.3s ease;"></div>
-        </div>
-    `;
-    miniMapDiv.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 10;
-    `;
-    
-    fullContainer.appendChild(mindMapDiv);
-    fullContainer.appendChild(miniMapDiv);
-    container.appendChild(fullContainer);
-
-    try {
-        const mindMapData = convertToMindMapData(task);
-        
-        if (!mindMapData || !mindMapData.data) {
-            console.log('心智圖資料無效');
-            createFallbackSvg(container, task);
-            return;
-        }
-
-        // 確保容器已完全渲染
-        setTimeout(() => {
-            const finalWidth = mindMapDiv.offsetWidth;
-            const finalHeight = mindMapDiv.offsetHeight;
-            
-            console.log('最終容器尺寸:', { finalWidth, finalHeight });
-            
-            if (finalWidth === 0 || finalHeight === 0) {
-                console.log('最終尺寸仍為0，使用備用方案');
-                createFallbackSvg(container, task);
-                return;
-            }
-
-            // 創建心智圖實例
-            const miniMap = new SimpleMindMap({
-                el: mindMapDiv,
-                data: mindMapData,
-                theme: 'default',
-                layout: 'logicalStructure',
-                readonly: true,
-                isShowExpandBtn: false,
-                enableFreeDrag: false,
-                mousewheel: false
-            });
-
-            // 初始化小地圖
-            setTimeout(() => {
-                initializeDashboardMiniMap(miniMap, miniMapDiv);
-            }, 800);
-
-            miniMindMaps[task.id] = miniMap;
-            console.log('✅ Dashboard 心智圖創建成功');
-            
-        }, 200);
-        
-    } catch (error) {
-        console.error('創建失敗，使用備用方案:', error);
-        createFallbackSvg(container, task);
-    }
-}
-
-function initializeDashboardMiniMap(mindMapInstance, container) {
-    const svgContainer = container.querySelector('.minimap-svg-container');
-    const viewBoxContainer = container.querySelector('.minimap-viewport');
-    
-    if (!mindMapInstance || !mindMapInstance.miniMap || !svgContainer || !viewBoxContainer) {
-        console.log('❌ Dashboard 小地圖初始化失敗：缺少必要元素');
-        return;
-    }
-    
-    // 更新小地圖的函數（直接複製成功的邏輯）
-    const updateDashboardMiniMap = () => {
-        try {
-            const containerWidth = container.offsetWidth;
-            const containerHeight = container.offsetHeight;
-            
-            const data = mindMapInstance.miniMap.calculationMiniMap(containerWidth, containerHeight);
-            
-            if (data && data.svgHTML) {
-                // 渲染 SVG 到小地圖容器
-                svgContainer.innerHTML = data.svgHTML;
+            const checkSizeAndCreate = (retryCount = 0) => {
+                const width = container.offsetWidth;
+                const height = container.offsetHeight;
                 
-                // 設置小地圖容器的變換
-                svgContainer.style.transform = `scale(${data.miniMapBoxScale || 1})`;
-                svgContainer.style.left = `${data.miniMapBoxLeft || 0}px`;
-                svgContainer.style.top = `${data.miniMapBoxTop || 0}px`;
-                
-                // 設置視口框樣式
-                if (data.viewBoxStyle && viewBoxContainer) {
-                    Object.assign(viewBoxContainer.style, {
-                        left: `${data.viewBoxStyle.left || 0}px`,
-                        top: `${data.viewBoxStyle.top || 0}px`,
-                        width: `${data.viewBoxStyle.width || 0}px`,
-                        height: `${data.viewBoxStyle.height || 0}px`
-                    });
+                if (width === 0 || height === 0) {
+                    if (retryCount < 5) {
+                        setTimeout(() => checkSizeAndCreate(retryCount + 1), 500 * (retryCount + 1));
+                        return;
+                    } else {
+                        createFallbackSvg(container, task);
+                        return;
+                    }
                 }
-                
-                console.log('✅ Dashboard 小地圖更新成功');
-            }
-        } catch (error) {
-            console.error('❌ Dashboard 小地圖更新失敗:', error);
-        }
-    };
-    
-    // 綁定相同的事件（複製成功的邏輯）
-    mindMapInstance.on('data_change', updateDashboardMiniMap);
-    mindMapInstance.on('view_data_change', updateDashboardMiniMap);
-    mindMapInstance.on('node_tree_render_end', updateDashboardMiniMap);
-    
-    console.log('✅ Dashboard 小地圖初始化成功');
-    
-    // 初始更新
-    setTimeout(updateDashboardMiniMap, 100);
-}
 
-    function createFallbackSvg(container, task) {
-    console.log('使用 SVG 備用方案');
-    
-    const taskName = task ? task.name : '專案';
-    const subTaskCount = task && task.subTasks ? task.subTasks.length : 0;
-    
-    container.innerHTML = `
-        <svg viewBox="0 0 240 100" style="width: 100%; height: 100%; background: #f9f9f9;">
-            <rect x="10" y="40" width="80" height="20" fill="#4287f5" rx="3"></rect>
-            <text x="50" y="54" text-anchor="middle" fill="white" font-size="10">${taskName.substring(0, 10)}...</text>
-            ${subTaskCount > 0 ? `
-                <line x1="90" y1="50" x2="120" y2="30" stroke="#999" stroke-width="1"></line>
-                <line x1="90" y1="50" x2="120" y2="50" stroke="#999" stroke-width="1"></line>
-                <line x1="90" y1="50" x2="120" y2="70" stroke="#999" stroke-width="1"></line>
-                <circle cx="130" cy="30" r="15" fill="${getStatusColor('completed')}"></circle>
-                <circle cx="130" cy="50" r="15" fill="${getStatusColor('in-progress')}"></circle>
-                <circle cx="130" cy="70" r="15" fill="${getStatusColor('pending')}"></circle>
-                <text x="130" y="34" text-anchor="middle" font-size="8">1</text>
-                <text x="130" y="54" text-anchor="middle" font-size="8">2</text>
-                <text x="130" y="74" text-anchor="middle" font-size="8">3</text>
-            ` : `
-                <text x="120" y="54" text-anchor="middle" fill="#999" font-size="10">無子任務</text>
-            `}
-        </svg>
-    `;
-}
-        // 渲染心智圖
-       async function renderMindMap() {
-    if (!currentTopTaskId) return;
+                createMiniMapWithValidSize(container, task, width, height);
+            };
 
-    const task = topTasks.find(t => t.id === currentTopTaskId);
-    if (!task) return;
-
-    const mindMapData = convertToMindMapData(task);
-
-    if (mindMapInstance) {
-        // 清理舊的事件監聽器
-        mindMapInstance.off('data_change', updateMiniMap);
-        mindMapInstance.off('view_data_change', updateMiniMap);
-        mindMapInstance.off('node_tree_render_end', updateMiniMap);
-        mindMapInstance.off('mini_map_view_box_position_change', onViewBoxPositionChange);
-        
-        mindMapInstance.destroy();
-        mindMapInstance = null;
-    }
-
-    try {
-        if (!SimpleMindMap) {
-            throw new Error('SimpleMindMap 未載入');
+            checkSizeAndCreate();
         }
 
-        // 基本配置選項
-        const options = {
-            el: document.getElementById('mindMapContent'),
-            data: mindMapData,
-            theme: currentTheme,
-            layout: 'logicalStructure',
-            scaleRatio: 0.1,
-            expandBtnSize: 20,
-            readonly: !isEditMode,
-            enableFreeDrag: true,
-            mousewheelAction: 'zoom',
-            mousewheelMoveStep: 100,
-            defaultInsertSecondLevelNodeText: '', // 清空預設文字
-            defaultInsertBelowSecondLevelNodeText: '', // 清空預設文字
-            createNewNodeBehavior: 'default',
-            isShowExpandBtn: true,
-            enableShortcutOnlyWhenMouseInSvg: false,
-            enableNodeTextEdit: false, // 暫時停用內建文字編輯
-            beforeTextEdit: (node, rect) => {
-                // 完全停用內建編輯，改用模態框
-                return false;
-            }
-        };
-
-        // 創建心智圖實例
-        mindMapInstance = new SimpleMindMap(options);
-
-        // 綁定基本事件
-        bindMindMapEvents();
-        
-        console.log('✅ 心智圖創建成功');
-        
-        // 如果小地圖是開啟狀態，重新初始化
-        if (showMiniMap) {
-            setTimeout(() => {
-                initializeMiniMap();
-            }, 1000);
-        }
-        
-    } catch (error) {
-        console.error('❌ 創建心智圖失敗:', error);
-        document.getElementById('mindMapContent').innerHTML = `
-            <div style="text-align: center; padding: 50px; color: #666;">
-                <h3>心智圖載入失敗</h3>
-                <p>錯誤訊息：${error.message}</p>
-                <p style="font-size: 12px; color: #999;">請檢查網路連線或重新整理頁面</p>
-            </div>
-        `;
-    }
-}
-
-        // 創建備用小地圖
-        function createFallbackMinimap(container, task) {
-            console.log('創建備用小地圖');
-            const canvas = document.createElement('canvas');
-            canvas.width = 200;
-            canvas.height = 150;
-            canvas.style.width = '100%';
-            canvas.style.height = '100%';
-            
-            const ctx = canvas.getContext('2d');
-            
-            // 背景
-            ctx.fillStyle = '#f9f9f9';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // 繪製簡化的心智圖結構
-            ctx.strokeStyle = '#ccc';
-            ctx.lineWidth = 1;
-            
-            // 主節點
-            ctx.fillStyle = '#4287f5';
-            ctx.fillRect(20, 65, 60, 20);
-            ctx.fillStyle = '#fff';
-            ctx.font = '10px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(task.name.substring(0, 8), 50, 78);
-            
-            // 繪製連線和子節點
-            if (task && task.subTasks) {
-                const nodeCount = Math.min(task.subTasks.length, 4);
-                const spacing = 120 / (nodeCount + 1);
-                
-                for (let i = 0; i < nodeCount; i++) {
-                    const y = spacing * (i + 1);
-                    
-                    // 連線
-                    ctx.strokeStyle = '#999';
-                    ctx.beginPath();
-                    ctx.moveTo(80, 75);
-                    ctx.lineTo(120, y);
-                    ctx.stroke();
-                    
-                    // 子節點
-                    const subTask = task.subTasks[i];
-                    ctx.fillStyle = getStatusColor(subTask.status);
-                    ctx.fillRect(120, y - 10, 60, 20);
-                    
-                    // 文字
-                    ctx.fillStyle = '#333';
-                    ctx.font = '9px Arial';
-                    ctx.textAlign = 'left';
-                    const text = subTask.name.length > 8 ? subTask.name.substring(0, 8) + '...' : subTask.name;
-                    ctx.fillText(text, 125, y + 3);
-                }
-                
-                // 如果還有更多節點
-                if (task.subTasks.length > 4) {
-                    ctx.fillStyle = '#666';
-                    ctx.font = '10px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(`+${task.subTasks.length - 4} 更多`, 150, 140);
-                }
-            }
-            
-            // 添加邊框
-            ctx.strokeStyle = '#ddd';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(0, 0, canvas.width, canvas.height);
-            
-            // 添加標題
-            ctx.fillStyle = '#666';
-            ctx.font = '11px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillText('導航預覽', 5, 15);
-            
+        function createMiniMapWithValidSize(container, task, width, height) {
             container.innerHTML = '';
-            container.appendChild(canvas);
+            
+            const fullContainer = document.createElement('div');
+            fullContainer.style.cssText = `
+                width: 100%;
+                height: 100%;
+                position: relative;
+                min-width: ${width}px;
+                min-height: ${height}px;
+            `;
+            
+            const mindMapDiv = document.createElement('div');
+            mindMapDiv.style.cssText = `
+                width: 100%;
+                height: 100%;
+                position: absolute;
+                opacity: 0;
+                pointer-events: none;
+            `;
+            
+            const miniMapDiv = document.createElement('div');
+            miniMapDiv.innerHTML = `
+                <div class="minimap-content-wrapper" style="position: relative; width: 100%; height: 100%; cursor: pointer;">
+                    <div class="minimap-svg-container" style="position: absolute; transform-origin: left top; width: 100%; height: 100%;"></div>
+                    <div class="minimap-viewport" style="position: absolute; border: 2px solid #2196f3; background: rgba(33, 150, 243, 0.1); transition: all 0.3s ease;"></div>
+                </div>
+            `;
+            miniMapDiv.style.cssText = `
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 10;
+            `;
+            
+            fullContainer.appendChild(mindMapDiv);
+            fullContainer.appendChild(miniMapDiv);
+            container.appendChild(fullContainer);
+
+            try {
+                const mindMapData = convertToMindMapData(task);
+                
+                if (!mindMapData || !mindMapData.data) {
+                    createFallbackSvg(container, task);
+                    return;
+                }
+
+                setTimeout(() => {
+                    const miniMap = new SimpleMindMap({
+                        el: mindMapDiv,
+                        data: mindMapData,
+                        theme: 'default',
+                        layout: 'logicalStructure',
+                        readonly: true,
+                        isShowExpandBtn: false,
+                        enableFreeDrag: false,
+                        mousewheel: false
+                    });
+
+                    setTimeout(() => {
+                        initializeDashboardMiniMap(miniMap, miniMapDiv);
+                    }, 800);
+
+                    miniMindMaps[task.id] = miniMap;
+                    console.log('✅ Dashboard 心智圖創建成功');
+                    
+                }, 200);
+                
+            } catch (error) {
+                console.error('創建失敗，使用備用方案:', error);
+                createFallbackSvg(container, task);
+            }
+        }
+
+        function initializeDashboardMiniMap(mindMapInstance, container) {
+            const svgContainer = container.querySelector('.minimap-svg-container');
+            const viewBoxContainer = container.querySelector('.minimap-viewport');
+            
+            if (!mindMapInstance || !mindMapInstance.miniMap || !svgContainer || !viewBoxContainer) {
+                console.log('❌ Dashboard 小地圖初始化失敗：缺少必要元素');
+                return;
+            }
+            
+            const updateDashboardMiniMap = () => {
+                try {
+                    const containerWidth = container.offsetWidth;
+                    const containerHeight = container.offsetHeight;
+                    
+                    const data = mindMapInstance.miniMap.calculationMiniMap(containerWidth, containerHeight);
+                    
+                    if (data && data.svgHTML) {
+                        svgContainer.innerHTML = data.svgHTML;
+                        svgContainer.style.transform = `scale(${data.miniMapBoxScale || 1})`;
+                        svgContainer.style.left = `${data.miniMapBoxLeft || 0}px`;
+                        svgContainer.style.top = `${data.miniMapBoxTop || 0}px`;
+                        
+                        setTimeout(() => {
+                            addTextToDashboardMiniMap(svgContainer, mindMapInstance);
+                        }, 200);
+                        
+                        if (data.viewBoxStyle && viewBoxContainer) {
+                            Object.assign(viewBoxContainer.style, {
+                                left: `${data.viewBoxStyle.left || 0}px`,
+                                top: `${data.viewBoxStyle.top || 0}px`,
+                                width: `${data.viewBoxStyle.width || 0}px`,
+                                height: `${data.viewBoxStyle.height || 0}px`
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('❌ Dashboard 小地圖更新失敗:', error);
+                }
+            };
+            
+            mindMapInstance.on('data_change', updateDashboardMiniMap);
+            mindMapInstance.on('view_data_change', updateDashboardMiniMap);
+            mindMapInstance.on('node_tree_render_end', updateDashboardMiniMap);
+            
+            setTimeout(updateDashboardMiniMap, 100);
+        }
+
+        function addTextToDashboardMiniMap(container, mindMapInstance) {
+            const svgElement = container.querySelector('svg');
+            if (!svgElement) return;
+
+            try {
+                const mindMapData = mindMapInstance.getData();
+                const allNodeTexts = extractCleanNodeTexts(mindMapData);
+                
+                const nodeGroups = svgElement.querySelectorAll('.smm-node');
+                
+                nodeGroups.forEach((nodeGroup, index) => {
+                    if (index < allNodeTexts.length) {
+                        const nodeText = allNodeTexts[index];
+                        const isRoot = nodeGroup.classList.contains('active');
+                        
+                        const transform = nodeGroup.getAttribute('transform');
+                        const translateMatch = transform.match(/matrix\([^,]+,[^,]+,[^,]+,[^,]+,([^,]+),([^,]+)\)/);
+                        
+                        if (translateMatch) {
+                            const nodeX = parseFloat(translateMatch[1]);
+                            const nodeY = parseFloat(translateMatch[2]);
+                            
+                            const pathElement = nodeGroup.querySelector('path');
+                            if (pathElement) {
+                                const pathBBox = pathElement.getBBox();
+                                const centerX = nodeX + pathBBox.width / 2;
+                                const centerY = nodeY + pathBBox.height / 2;
+                                
+                                const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                                textElement.setAttribute('x', centerX);
+                                textElement.setAttribute('y', centerY);
+                                textElement.setAttribute('text-anchor', 'middle');
+                                textElement.setAttribute('dominant-baseline', 'middle');
+                                textElement.setAttribute('font-family', 'Arial, Microsoft JhengHei, sans-serif');
+                                textElement.setAttribute('font-size', isRoot ? '9' : '7');
+                                textElement.setAttribute('font-weight', isRoot ? 'bold' : 'normal');
+                                textElement.setAttribute('fill', '#fff');
+                                textElement.setAttribute('stroke', '#000');
+                                textElement.setAttribute('stroke-width', '0.3');
+                                textElement.setAttribute('paint-order', 'stroke fill');
+                                textElement.style.pointerEvents = 'none';
+                                
+                                let displayText = nodeText;
+                                const maxLength = isRoot ? 5 : 3;
+                                if (displayText.length > maxLength) {
+                                    displayText = displayText.substring(0, maxLength - 1) + '.';
+                                }
+                                
+                                textElement.textContent = displayText;
+                                
+                                const smmContainer = svgElement.querySelector('.smm-container');
+                                if (smmContainer) {
+                                    smmContainer.appendChild(textElement);
+                                } else {
+                                    svgElement.appendChild(textElement);
+                                }
+                            }
+                        }
+                    }
+                });
+                
+            } catch (error) {
+                console.error('❌ Dashboard 小地圖添加文字失敗:', error);
+            }
+        }
+
+        function createFallbackSvg(container, task) {
+            const taskName = task ? task.name : '專案';
+            const subTaskCount = task && task.subTasks ? task.subTasks.length : 0;
+            
+            container.innerHTML = `
+                <svg viewBox="0 0 240 100" style="width: 100%; height: 100%; background: #f9f9f9;">
+                    <rect x="10" y="40" width="80" height="20" fill="#4287f5" rx="3"></rect>
+                    <text x="50" y="54" text-anchor="middle" fill="white" font-size="10">${taskName.substring(0, 10)}...</text>
+                    ${subTaskCount > 0 ? `
+                        <line x1="90" y1="50" x2="120" y2="30" stroke="#999" stroke-width="1"></line>
+                        <line x1="90" y1="50" x2="120" y2="50" stroke="#999" stroke-width="1"></line>
+                        <line x1="90" y1="50" x2="120" y2="70" stroke="#999" stroke-width="1"></line>
+                        <circle cx="130" cy="30" r="15" fill="${getStatusColor('completed')}"></circle>
+                        <circle cx="130" cy="50" r="15" fill="${getStatusColor('in-progress')}"></circle>
+                        <circle cx="130" cy="70" r="15" fill="${getStatusColor('pending')}"></circle>
+                        <text x="130" y="34" text-anchor="middle" font-size="8">1</text>
+                        <text x="130" y="54" text-anchor="middle" font-size="8">2</text>
+                        <text x="130" y="74" text-anchor="middle" font-size="8">3</text>
+                    ` : `
+                        <text x="120" y="54" text-anchor="middle" fill="#999" font-size="10">無子任務</text>
+                    `}
+                </svg>
+            `;
+        }
+
+        // 渲染心智圖
+        async function renderMindMap() {
+            if (!currentTopTaskId) return;
+
+            const task = topTasks.find(t => t.id === currentTopTaskId);
+            if (!task) return;
+
+            const mindMapData = convertToMindMapData(task);
+
+            if (mindMapInstance) {
+                mindMapInstance.off('data_change', updateMiniMap);
+                mindMapInstance.off('view_data_change', updateMiniMap);
+                mindMapInstance.off('node_tree_render_end', updateMiniMap);
+                mindMapInstance.off('mini_map_view_box_position_change', onViewBoxPositionChange);
+                
+                mindMapInstance.destroy();
+                mindMapInstance = null;
+            }
+
+            try {
+                if (!SimpleMindMap) {
+                    throw new Error('SimpleMindMap 未載入');
+                }
+
+                const options = {
+                    el: document.getElementById('mindMapContent'),
+                    data: mindMapData,
+                    theme: currentTheme,
+                    layout: 'logicalStructure',
+                    scaleRatio: 0.1,
+                    expandBtnSize: 20,
+                    readonly: !isEditMode,
+                    enableFreeDrag: true,
+                    mousewheelAction: 'zoom',
+                    mousewheelMoveStep: 100,
+                    defaultInsertSecondLevelNodeText: '',
+                    defaultInsertBelowSecondLevelNodeText: '',
+                    createNewNodeBehavior: 'default',
+                    isShowExpandBtn: true,
+                    enableShortcutOnlyWhenMouseInSvg: false,
+                    enableNodeTextEdit: false,
+                    beforeTextEdit: (node, rect) => {
+                        return false;
+                    }
+                };
+
+                mindMapInstance = new SimpleMindMap(options);
+                bindMindMapEvents();
+                
+                if (showMiniMap) {
+                    setTimeout(() => {
+                        initializeMiniMap();
+                    }, 1000);
+                }
+                
+            } catch (error) {
+                console.error('❌ 創建心智圖失敗:', error);
+                document.getElementById('mindMapContent').innerHTML = `
+                    <div style="text-align: center; padding: 50px; color: #666;">
+                        <h3>心智圖載入失敗</h3>
+                        <p>錯誤訊息：${error.message}</p>
+                    </div>
+                `;
+            }
         }
 
         // 綁定心智圖事件
         function bindMindMapEvents() {
             if (!mindMapInstance) return;
 
-            // 節點點擊事件
             mindMapInstance.on('node_click', (node) => {
                 console.log('節點點擊:', node);
             });
 
-            // 節點雙擊事件 - 編輯節點
             mindMapInstance.on('node_dblclick', (node) => {
                 if (isEditMode && node.nodeData.data.isRoot !== true) {
-                    // 編輯子任務
                     editNodeTask(node);
                 }
             });
 
-            // 數據變化事件
             mindMapInstance.on('data_change', (data) => {
                 console.log('數據變化:', data);
-                // 不要在這裡同步，因為我們會在模態框確認後手動同步
             });
 
-            // 節點激活事件
             mindMapInstance.on('node_active', (node, activeNodeList) => {
                 console.log('激活節點:', node);
             });
 
-            // 繪製完成事件
             mindMapInstance.on('draw', () => {
                 console.log('心智圖繪製完成');
             });
 
-            // 插入節點事件
             mindMapInstance.on('node_insert', (node) => {
                 if (isEditMode) {
-                    console.log('插入節點:', node);
-                    // 打開新增子任務模態框
                     setTimeout(() => {
                         openAddSubTaskModalFromMindMap(node);
                     }, 100);
@@ -1935,415 +1769,264 @@ function initializeDashboardMiniMap(mindMapInstance, container) {
             });
         }
 
-       function createMiniMap() {
-    if (!mindMapInstance || !mindMapInstance.miniMap) {
-        console.log('❌ 心智圖實例或小地圖插件不存在');
-        const task = topTasks.find(t => t.id === currentTopTaskId);
-        if (task) {
-            createFallbackMinimap(document.getElementById('minimapContainer'), task);
+        function initializeMiniMap() {
+            miniMapContainer = document.getElementById('miniMapSvgContainer');
+            viewBoxContainer = document.getElementById('miniMapViewBox');
+            
+            if (!mindMapInstance || !miniMapContainer || !viewBoxContainer) {
+                return;
+            }
+            
+            mindMapInstance.on('data_change', updateMiniMap);
+            mindMapInstance.on('view_data_change', updateMiniMap);
+            mindMapInstance.on('node_tree_render_end', updateMiniMap);
+            mindMapInstance.on('mini_map_view_box_position_change', onViewBoxPositionChange);
+            
+            const containerWrapper = document.querySelector('.minimap-content-wrapper');
+            if (containerWrapper) {
+                containerWrapper.addEventListener('mousedown', onMiniMapMousedown);
+                containerWrapper.addEventListener('mousemove', onMiniMapMousemove);
+            }
+            
+            viewBoxContainer.addEventListener('mousedown', onViewBoxMousedown);
+            viewBoxContainer.addEventListener('mousemove', onViewBoxMousemove);
+            window.addEventListener('mouseup', onMiniMapMouseup);
+            
+            setTimeout(updateMiniMap, 500);
         }
-        return;
-    }
-    
-    const minimapContainer = document.getElementById('minimapContainer');
-    minimapContainer.style.display = 'block';
-    minimapContainer.innerHTML = '';
-    
-    try {
-        console.log('開始創建小地圖...');
-        console.log('小地圖插件:', mindMapInstance.miniMap);
-        
-        // 基於實際可用方法創建小地圖
-        const miniMapInstance = mindMapInstance.miniMap;
-        
-        // 方法1: 嘗試調用 calculationMiniMap 方法
-        if (typeof miniMapInstance.calculationMiniMap === 'function') {
-            console.log('✅ 使用 calculationMiniMap 方法');
+
+        // 更新小地圖
+        function updateMiniMap() {
+            if (!mindMapInstance || !mindMapInstance.miniMap || !miniMapContainer) {
+                return;
+            }
             
-            // 創建小地圖容器
-            const miniMapDiv = document.createElement('div');
-            miniMapDiv.style.width = '100%';
-            miniMapDiv.style.height = '100%';
-            miniMapDiv.style.position = 'relative';
-            miniMapDiv.style.border = '1px solid #ddd';
-            miniMapDiv.style.borderRadius = '4px';
-            miniMapDiv.style.overflow = 'hidden';
-            miniMapDiv.id = 'miniMapContent';
-            
-            minimapContainer.appendChild(miniMapDiv);
-            
-            // 嘗試讓小地圖渲染到這個容器
             try {
-                // 直接調用計算方法
-                miniMapInstance.calculationMiniMap();
+                const containerWidth = 200;
+                const containerHeight = 120;
                 
-                // 檢查是否有生成的小地圖元素
-                setTimeout(() => {
-                    // 查找可能的小地圖元素
-                    const possibleMiniMapElements = [
-                        document.querySelector('.smm-minimap'),
-                        document.querySelector('.minimap'),
-                        document.querySelector('[class*="mini"]'),
-                        document.querySelector('svg[width][height]')
-                    ];
+                const data = mindMapInstance.miniMap.calculationMiniMap(containerWidth, containerHeight);
+                
+                if (data && data.svgHTML) {
+                    miniMapContainer.innerHTML = data.svgHTML;
+                    miniMapContainer.style.transform = `scale(${data.miniMapBoxScale || 1})`;
+                    miniMapContainer.style.left = `${data.miniMapBoxLeft || 0}px`;
+                    miniMapContainer.style.top = `${data.miniMapBoxTop || 0}px`;
                     
-                    let foundElement = null;
-                    for (let el of possibleMiniMapElements) {
-                        if (el && el.parentNode !== minimapContainer) {
-                            foundElement = el;
-                            break;
-                        }
+                    if (data.viewBoxStyle && viewBoxContainer) {
+                        Object.assign(viewBoxContainer.style, {
+                            left: `${data.viewBoxStyle.left || 0}px`,
+                            top: `${data.viewBoxStyle.top || 0}px`,
+                            width: `${data.viewBoxStyle.width || 0}px`,
+                            height: `${data.viewBoxStyle.height || 0}px`
+                        });
                     }
                     
-                    if (foundElement) {
-                        console.log('✅ 找到小地圖元素，移動到容器中');
-                        // 克隆元素到我們的容器中
-                        const clonedElement = foundElement.cloneNode(true);
-                        miniMapDiv.appendChild(clonedElement);
+                    setTimeout(() => {
+                        addTextToMiniMap(miniMapContainer, mindMapInstance);
+                    }, 200);
+                }
+            } catch (error) {
+                console.error('❌ 更新小地圖失敗:', error);
+            }
+        }
+
+        function addTextToMiniMap(container, mindMapInstance) {
+            const svgElement = container.querySelector('svg');
+            if (!svgElement) return;
+
+            try {
+                const mindMapData = mindMapInstance.getData();
+                const allNodeTexts = extractCleanNodeTexts(mindMapData);
+                
+                const nodeGroups = svgElement.querySelectorAll('.smm-node');
+                
+                nodeGroups.forEach((nodeGroup, index) => {
+                    if (index < allNodeTexts.length) {
+                        const nodeText = allNodeTexts[index];
+                        const isRoot = nodeGroup.classList.contains('active');
                         
-                        // 調整大小
-                        if (clonedElement.tagName === 'SVG') {
-                            clonedElement.style.width = '100%';
-                            clonedElement.style.height = '100%';
+                        const transform = nodeGroup.getAttribute('transform');
+                        const translateMatch = transform.match(/matrix\([^,]+,[^,]+,[^,]+,[^,]+,([^,]+),([^,]+)\)/);
+                        
+                        if (translateMatch) {
+                            const nodeX = parseFloat(translateMatch[1]);
+                            const nodeY = parseFloat(translateMatch[2]);
+                            
+                            const pathElement = nodeGroup.querySelector('path');
+                            if (pathElement) {
+                                const pathBBox = pathElement.getBBox();
+                                const centerX = nodeX + pathBBox.width / 2;
+                                const centerY = nodeY + pathBBox.height / 2;
+                                
+                                const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                                textElement.setAttribute('x', centerX);
+                                textElement.setAttribute('y', centerY);
+                                textElement.setAttribute('text-anchor', 'middle');
+                                textElement.setAttribute('dominant-baseline', 'middle');
+                                textElement.setAttribute('font-family', 'Arial, Microsoft JhengHei, sans-serif');
+                                textElement.setAttribute('font-size', isRoot ? '14' : '11');
+                                textElement.setAttribute('font-weight', isRoot ? 'bold' : 'normal');
+                                textElement.setAttribute('fill', '#fff');
+                                textElement.setAttribute('stroke', '#000');
+                                textElement.setAttribute('stroke-width', '0.5');
+                                textElement.setAttribute('paint-order', 'stroke fill');
+                                textElement.style.pointerEvents = 'none';
+                                
+                                let displayText = nodeText;
+                                const maxLength = isRoot ? 12 : 8;
+                                if (displayText.length > maxLength) {
+                                    displayText = displayText.substring(0, maxLength - 2) + '..';
+                                }
+                                
+                                textElement.textContent = displayText;
+                                
+                                const container = svgElement.querySelector('.smm-container');
+                                if (container) {
+                                    container.appendChild(textElement);
+                                } else {
+                                    svgElement.appendChild(textElement);
+                                }
+                            }
                         }
-                    } else {
-                        console.log('❌ 未找到小地圖元素，使用備用方案');
-                        createMiniMapManually(miniMapDiv);
                     }
-                }, 500);
+                });
                 
             } catch (error) {
-                console.error('調用 calculationMiniMap 失敗:', error);
-                createMiniMapManually(miniMapDiv);
+                console.error('❌ 添加文字失敗:', error);
+            }
+        }
+
+        function extractCleanNodeTexts(nodeData) {
+            const texts = [];
+            
+            function traverse(node) {
+                if (node && node.data && node.data.text) {
+                    let cleanText = node.data.text;
+                    cleanText = cleanText.replace(/<[^>]*>/g, '');
+                    cleanText = cleanText.trim();
+                    texts.push(cleanText);
+                }
+                
+                if (node && node.children) {
+                    node.children.forEach(child => traverse(child));
+                }
             }
             
-            return;
+            traverse(nodeData);
+            return texts;
         }
-        
-        console.log('❌ 沒有找到 calculationMiniMap 方法，使用備用方案');
-        const task = topTasks.find(t => t.id === currentTopTaskId);
-        if (task) {
-            createFallbackMinimap(minimapContainer, task);
-        }
-        
-    } catch (error) {
-        console.error('❌ 小地圖創建失敗:', error);
-        const task = topTasks.find(t => t.id === currentTopTaskId);
-        if (task) {renderMiniMindMap
-            createFallbackMinimap(minimapContainer, task);
-        }
-    }
-}
 
-function initializeMiniMap() {
-    miniMapContainer = document.getElementById('miniMapSvgContainer');
-    viewBoxContainer = document.getElementById('miniMapViewBox');
-    
-    if (!mindMapInstance || !miniMapContainer || !viewBoxContainer) {
-        console.log('❌ 小地圖初始化失敗：缺少必要元素');
-        return;
-    }
-    
-    // 綁定心智圖事件
-    mindMapInstance.on('data_change', updateMiniMap);
-    mindMapInstance.on('view_data_change', updateMiniMap);
-    mindMapInstance.on('node_tree_render_end', updateMiniMap);
-    mindMapInstance.on('mini_map_view_box_position_change', onViewBoxPositionChange);
-    
-    // 綁定小地圖事件
-    const containerWrapper = document.querySelector('.minimap-content-wrapper');
-    if (containerWrapper) {
-        containerWrapper.addEventListener('mousedown', onMiniMapMousedown);
-        containerWrapper.addEventListener('mousemove', onMiniMapMousemove);
-    }
-    
-    // 綁定視口框事件
-    viewBoxContainer.addEventListener('mousedown', onViewBoxMousedown);
-    viewBoxContainer.addEventListener('mousemove', onViewBoxMousemove);
-    
-    // 綁定全域滑鼠抬起事件
-    window.addEventListener('mouseup', onMiniMapMouseup);
-    
-    console.log('✅ 小地圖初始化成功');
-    
-    // 初始更新
-    setTimeout(updateMiniMap, 500);
-}
+        // 小地圖事件處理函數
+        function onMiniMapMousedown(e) {
+            if (!mindMapInstance || !mindMapInstance.miniMap) return;
+            mindMapInstance.miniMap.onMousedown(e);
+        }
 
-// 更新小地圖
-function updateMiniMap() {
-    if (!mindMapInstance || !mindMapInstance.miniMap || !miniMapContainer) {
-        return;
-    }
-    
-    try {
-        // 使用官方 API 計算小地圖數據
-        const containerWidth = 200; // 小地圖容器寬度
-        const containerHeight = 120; // 小地圖容器高度
-        
-        const data = mindMapInstance.miniMap.calculationMiniMap(containerWidth, containerHeight);
-        
-        if (data && data.svgHTML) {
-            // 渲染 SVG 到小地圖容器
-            miniMapContainer.innerHTML = data.svgHTML;
+        function onMiniMapMousemove(e) {
+            if (!mindMapInstance || !mindMapInstance.miniMap) return;
+            mindMapInstance.miniMap.onMousemove(e);
+        }
+
+        function onMiniMapMouseup(e) {
+            if (!mindMapInstance || !mindMapInstance.miniMap) return;
             
-            // 設置小地圖容器的變換
-            miniMapContainer.style.transform = `scale(${data.miniMapBoxScale || 1})`;
-            miniMapContainer.style.left = `${data.miniMapBoxLeft || 0}px`;
-            miniMapContainer.style.top = `${data.miniMapBoxTop || 0}px`;
-            
-            // 設置視口框樣式
-            if (data.viewBoxStyle && viewBoxContainer) {
-                Object.assign(viewBoxContainer.style, {
-                    left: `${data.viewBoxStyle.left || 0}px`,
-                    top: `${data.viewBoxStyle.top || 0}px`,
-                    width: `${data.viewBoxStyle.width || 0}px`,
-                    height: `${data.viewBoxStyle.height || 0}px`
-                });
+            if (viewBoxContainer) {
+                viewBoxContainer.classList.remove('no-transition');
             }
             
-            miniMapData = data;
-            console.log('✅ 小地圖更新成功');
+            mindMapInstance.miniMap.onMouseup(e);
+            isDraggingViewBox = false;
         }
-    } catch (error) {
-        console.error('❌ 更新小地圖失敗:', error);
-    }
-}
 
-// 小地圖滑鼠按下事件
-function onMiniMapMousedown(e) {
-    if (!mindMapInstance || !mindMapInstance.miniMap) return;
-    mindMapInstance.miniMap.onMousedown(e);
-}
-
-// 小地圖滑鼠移動事件
-function onMiniMapMousemove(e) {
-    if (!mindMapInstance || !mindMapInstance.miniMap) return;
-    mindMapInstance.miniMap.onMousemove(e);
-}
-
-// 小地圖滑鼠抬起事件
-function onMiniMapMouseup(e) {
-    if (!mindMapInstance || !mindMapInstance.miniMap) return;
-    
-    withTransition = true;
-    if (viewBoxContainer) {
-        viewBoxContainer.classList.remove('no-transition');
-    }
-    
-    mindMapInstance.miniMap.onMouseup(e);
-    isDraggingViewBox = false;
-}
-
-// 視口框滑鼠按下事件
-function onViewBoxMousedown(e) {
-    if (!mindMapInstance || !mindMapInstance.miniMap) return;
-    
-    e.stopPropagation();
-    isDraggingViewBox = true;
-    mindMapInstance.miniMap.onViewBoxMousedown(e);
-}
-
-// 視口框滑鼠移動事件
-function onViewBoxMousemove(e) {
-    if (!mindMapInstance || !mindMapInstance.miniMap || !isDraggingViewBox) return;
-    mindMapInstance.miniMap.onViewBoxMousemove(e);
-}
-
-// 視口框位置變化事件
-function onViewBoxPositionChange({ left, top, width, height }) {
-    if (!viewBoxContainer) return;
-    
-    withTransition = false;
-    viewBoxContainer.classList.add('no-transition');
-    
-    Object.assign(viewBoxContainer.style, {
-        left: `${left}px`,
-        top: `${top}px`,
-        width: `${width}px`,
-        height: `${height}px`
-    });
-}
-
-    // 新增手動創建小地圖的方法
-function createMiniMapManually(container) {
-    console.log('手動創建小地圖視圖');
-    
-    if (!mindMapInstance) return;
-    
-    // 創建 SVG 元素
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', '100%');
-    svg.setAttribute('height', '100%');
-    svg.setAttribute('viewBox', '0 0 200 150');
-    svg.style.background = '#f9f9f9';
-    
-    try {
-        // 獲取心智圖的節點數據
-        const data = mindMapInstance.getData();
-        if (data && data.data) {
-            drawMiniMapNodes(svg, data, 100, 75, 0); // 中心點在 (100, 75)
+        function onViewBoxMousedown(e) {
+            if (!mindMapInstance || !mindMapInstance.miniMap) return;
+            
+            e.stopPropagation();
+            isDraggingViewBox = true;
+            mindMapInstance.miniMap.onViewBoxMousedown(e);
         }
-        
-        // 添加視窗指示器
-        const viewport = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        viewport.setAttribute('x', '80');
-        viewport.setAttribute('y', '60');
-        viewport.setAttribute('width', '40');
-        viewport.setAttribute('height', '30');
-        viewport.setAttribute('fill', 'rgba(33, 150, 243, 0.2)');
-        viewport.setAttribute('stroke', '#2196f3');
-        viewport.setAttribute('stroke-width', '2');
-        viewport.style.cursor = 'pointer';
-        
-        // 添加點擊事件
-        viewport.addEventListener('click', () => {
-            if (mindMapInstance && mindMapInstance.view) {
-                mindMapInstance.view.reset();
-            }
-        });
-        
-        svg.appendChild(viewport);
-        container.appendChild(svg);
-        
-        console.log('✅ 手動小地圖創建成功');
-        
-    } catch (error) {
-        console.error('手動創建小地圖失敗:', error);
-        container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">小地圖載入中...</div>';
-    }
-}
 
-// 遞歸繪製小地圖節點
-function drawMiniMapNodes(svg, nodeData, x, y, level) {
-    if (!nodeData || !nodeData.data) return;
-    
-    // 繪製當前節點
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    const nodeWidth = Math.max(20, Math.min(60, nodeData.data.text.length * 4));
-    const nodeHeight = 16;
-    
-    rect.setAttribute('x', x - nodeWidth/2);
-    rect.setAttribute('y', y - nodeHeight/2);
-    rect.setAttribute('width', nodeWidth);
-    rect.setAttribute('height', nodeHeight);
-    rect.setAttribute('fill', level === 0 ? '#4287f5' : '#e3f2fd');
-    rect.setAttribute('stroke', level === 0 ? '#2196f3' : '#90caf9');
-    rect.setAttribute('stroke-width', '1');
-    rect.setAttribute('rx', '3');
-    
-    // 節點文字
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', x);
-    text.setAttribute('y', y + 4);
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('font-size', '8');
-    text.setAttribute('fill', level === 0 ? '#fff' : '#333');
-    text.textContent = nodeData.data.text.length > 8 ? 
-        nodeData.data.text.substring(0, 8) + '...' : 
-        nodeData.data.text;
-    
-    svg.appendChild(rect);
-    svg.appendChild(text);
-    
-    // 繪製子節點
-    if (nodeData.children && nodeData.children.length > 0) {
-        const childCount = nodeData.children.length;
-        const angleStep = (Math.PI * 1.5) / Math.max(childCount - 1, 1);
-        const startAngle = -Math.PI * 0.75;
-        const radius = 40;
-        
-        nodeData.children.forEach((child, index) => {
-            const angle = startAngle + angleStep * index;
-            const childX = x + Math.cos(angle) * radius;
-            const childY = y + Math.sin(angle) * radius;
+        function onViewBoxMousemove(e) {
+            if (!mindMapInstance || !mindMapInstance.miniMap || !isDraggingViewBox) return;
+            mindMapInstance.miniMap.onViewBoxMousemove(e);
+        }
+
+        function onViewBoxPositionChange({ left, top, width, height }) {
+            if (!viewBoxContainer) return;
             
-            // 繪製連線
-            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            line.setAttribute('x1', x);
-            line.setAttribute('y1', y);
-            line.setAttribute('x2', childX);
-            line.setAttribute('y2', childY);
-            line.setAttribute('stroke', '#999');
-            line.setAttribute('stroke-width', '1');
-            svg.appendChild(line);
+            viewBoxContainer.classList.add('no-transition');
             
-            // 遞歸繪製子節點（限制層級避免過於複雜）
-            if (level < 2) {
-                drawMiniMapNodes(svg, child, childX, childY, level + 1);
-            }
-        });
-    }
-}
+            Object.assign(viewBoxContainer.style, {
+                left: `${left}px`,
+                top: `${top}px`,
+                width: `${width}px`,
+                height: `${height}px`
+            });
+        }
+
         // 轉換數據為心智圖格式
         function convertToMindMapData(task) {
-    if (!task) {
-        console.log('❌ convertToMindMapData: 任務為空');
-        return null;
-    }
+            if (!task) return null;
 
-    // 遞歸轉換子任務
-    function convertSubTasks(subTasks, parentType = '') {
-        if (!subTasks || !Array.isArray(subTasks)) {
-            return [];
+            function convertSubTasks(subTasks) {
+                if (!subTasks || !Array.isArray(subTasks)) {
+                    return [];
+                }
+                
+                return subTasks.map(subTask => {
+                    const children = subTask.children ? convertSubTasks(subTask.children) : [];
+                    
+                    return {
+                        data: {
+                            text: subTask.name || '未命名任務',
+                            expand: true,
+                            note: `負責人: ${subTask.assignee || '未指派'}\n預估工時: ${subTask.hours || 0}小時\n狀態: ${getStatusLabel(subTask.status || 'pending')}`,
+                            backgroundColor: getStatusColor(subTask.status || 'pending'),
+                            fontSize: 14,
+                            color: '#333',
+                            borderColor: getStatusBorderColor(subTask.status || 'pending'),
+                            borderWidth: 2,
+                            borderRadius: 5
+                        },
+                        children: children,
+                        uid: subTask.id || Date.now() + Math.random()
+                    };
+                });
+            }
+
+            try {
+                const result = {
+                    data: {
+                        text: task.name || '未命名專案',
+                        expand: true,
+                        isActive: true,
+                        isRoot: true,
+                        fontSize: 16,
+                        fontWeight: 'bold',
+                        backgroundColor: '#4287f5',
+                        color: '#fff'
+                    },
+                    children: convertSubTasks(task.subTasks || [])
+                };
+
+                return result;
+                
+            } catch (error) {
+                console.error('❌ convertToMindMapData 失敗:', error);
+                
+                return {
+                    data: {
+                        text: task.name || '專案',
+                        expand: true,
+                        isRoot: true
+                    },
+                    children: []
+                };
+            }
         }
-        
-        return subTasks.map(subTask => {
-            const children = subTask.children ? convertSubTasks(subTask.children, subTask.status) : [];
-            
-            return {
-                data: {
-                    text: subTask.name || '未命名任務',
-                    expand: true,
-                    note: `負責人: ${subTask.assignee || '未指派'}\n預估工時: ${subTask.hours || 0}小時\n狀態: ${getStatusLabel(subTask.status || 'pending')}`,
-                    hyperlink: subTask.link || '',
-                    backgroundColor: getStatusColor(subTask.status || 'pending'),
-                    fontSize: 14,
-                    color: '#333',
-                    borderColor: getStatusBorderColor(subTask.status || 'pending'),
-                    borderWidth: 2,
-                    borderRadius: 5
-                },
-                children: children,
-                uid: subTask.id || Date.now() + Math.random() // 確保有唯一 ID
-            };
-        });
-    }
 
-    try {
-        const result = {
-            data: {
-                text: task.name || '未命名專案',
-                expand: true,
-                isActive: true,
-                isRoot: true, // 標記為根節點
-                fontSize: 16,
-                fontWeight: 'bold',
-                backgroundColor: '#4287f5',
-                color: '#fff'
-            },
-            children: convertSubTasks(task.subTasks || [])
-        };
-
-        console.log('✅ convertToMindMapData 成功:', result);
-        return result;
-        
-    } catch (error) {
-        console.error('❌ convertToMindMapData 失敗:', error);
-        
-        // 返回最基本的數據結構
-        return {
-            data: {
-                text: task.name || '專案',
-                expand: true,
-                isRoot: true
-            },
-            children: []
-        };
-    }
-}
-
-        // 切換編輯模式
+        // 心智圖工具欄功能
         function toggleEditMode() {
             isEditMode = !isEditMode;
             if (mindMapInstance) {
@@ -2352,14 +2035,12 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                 });
             }
             
-            // 更新按鈕狀態
             const editBtn = document.getElementById('editModeBtn');
             if (editBtn) {
                 editBtn.classList.toggle('active', isEditMode);
             }
         }
 
-        // 添加子節點
         function addChildNode() {
             if (!mindMapInstance) return;
             
@@ -2374,7 +2055,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                     }
                 });
                 
-                // 獲取新創建的節點
                 setTimeout(() => {
                     const newNode = activeNode.children[activeNode.children.length - 1];
                     if (newNode) {
@@ -2386,14 +2066,12 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             }
         }
 
-        // 添加同級節點
         function addSiblingNode() {
             if (!mindMapInstance) return;
             
             if (mindMapInstance.renderer && mindMapInstance.renderer.activeNodeList.length > 0) {
                 const activeNode = mindMapInstance.renderer.activeNodeList[0];
                 
-                // 不允許在根節點添加同級節點
                 if (activeNode.nodeData.data.isRoot) {
                     alert('無法在根節點添加同級節點');
                     return;
@@ -2408,7 +2086,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                     }
                 });
                 
-                // 獲取新創建的節點
                 setTimeout(() => {
                     const parent = activeNode.parent;
                     if (parent && parent.children) {
@@ -2423,14 +2100,12 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             }
         }
 
-        // 刪除節點
         function deleteNode() {
             if (!mindMapInstance) return;
             
             if (mindMapInstance.renderer && mindMapInstance.renderer.activeNodeList.length > 0) {
                 const activeNode = mindMapInstance.renderer.activeNodeList[0];
                 
-                // 不允許刪除根節點
                 if (activeNode.nodeData.data.isRoot) {
                     alert('無法刪除根節點');
                     return;
@@ -2439,7 +2114,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                 if (confirm('確定要刪除選中的節點嗎？')) {
                     mindMapInstance.execCommand('REMOVE_NODE');
                     
-                    // 同步到原始數據
                     setTimeout(() => {
                         syncMindMapChangesToData();
                     }, 100);
@@ -2449,21 +2123,18 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             }
         }
 
-        // 撤銷
         function undoAction() {
             if (mindMapInstance && mindMapInstance.command) {
                 mindMapInstance.command.back();
             }
         }
 
-        // 重做
         function redoAction() {
             if (mindMapInstance && mindMapInstance.command) {
                 mindMapInstance.command.forward();
             }
         }
 
-        // 切換主題
         function changeTheme(theme) {
             currentTheme = theme;
             if (mindMapInstance) {
@@ -2471,14 +2142,12 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             }
         }
 
-        // 切換佈局
         function changeLayout(layout) {
             if (mindMapInstance) {
                 mindMapInstance.setLayout(layout);
             }
         }
 
-        // 導出心智圖
         async function exportMindMap(type) {
             if (!mindMapInstance) return;
 
@@ -2511,39 +2180,34 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             }
         }
 
-        // 切換小地圖
-    function toggleMiniMap() {
-    showMiniMap = !showMiniMap;
-    const minimapContainer = document.getElementById('minimapContainer');
-    const btn = event.target.closest('.toolbar-btn');
-    
-    console.log('切換小地圖狀態:', showMiniMap);
-    
-    if (showMiniMap) {
-        if (btn) btn.classList.add('active');
-        minimapContainer.style.display = 'block';
-        
-        // 初始化小地圖
-        setTimeout(() => {
-            initializeMiniMap();
-        }, 100);
-        
-    } else {
-        if (btn) btn.classList.remove('active');
-        minimapContainer.style.display = 'none';
-        
-        // 清理事件監聽器
-        if (mindMapInstance) {
-            mindMapInstance.off('data_change', updateMiniMap);
-            mindMapInstance.off('view_data_change', updateMiniMap);
-            mindMapInstance.off('node_tree_render_end', updateMiniMap);
-            mindMapInstance.off('mini_map_view_box_position_change', onViewBoxPositionChange);
+        function toggleMiniMap() {
+            showMiniMap = !showMiniMap;
+            const minimapContainer = document.getElementById('minimapContainer');
+            const btn = event.target.closest('.toolbar-btn');
+            
+            if (showMiniMap) {
+                if (btn) btn.classList.add('active');
+                minimapContainer.style.display = 'block';
+                
+                setTimeout(() => {
+                    initializeMiniMap();
+                }, 100);
+                
+            } else {
+                if (btn) btn.classList.remove('active');
+                minimapContainer.style.display = 'none';
+                
+                if (mindMapInstance) {
+                    mindMapInstance.off('data_change', updateMiniMap);
+                    mindMapInstance.off('view_data_change', updateMiniMap);
+                    mindMapInstance.off('node_tree_render_end', updateMiniMap);
+                    mindMapInstance.off('mini_map_view_box_position_change', onViewBoxPositionChange);
+                }
+                
+                window.removeEventListener('mouseup', onMiniMapMouseup);
+            }
         }
-        
-        window.removeEventListener('mouseup', onMiniMapMouseup);
-    }
-}
-        // 切換全螢幕
+
         function toggleFullScreen() {
             const container = document.querySelector('.mindmap-container');
             if (!document.fullscreenElement) {
@@ -2555,7 +2219,7 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             }
         }
 
-        // 填充負責人選項
+        // UI 基礎功能
         function populateAssigneeOptions() {
             const select = document.getElementById('subTaskAssignee');
             select.innerHTML = '<option value="">請選擇負責人</option>';
@@ -2568,7 +2232,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             });
         }
 
-        // 填充狀態選項
         function populateStatusOptions() {
             const select = document.getElementById('subTaskStatus');
             select.innerHTML = '';
@@ -2580,22 +2243,18 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                 select.appendChild(option);
             });
             
-            // 預設選擇「待開始」
             select.value = 'pending';
         }
 
-        // 取得狀態標籤的樣式類別
         function getStatusClass(status) {
             return `status-${status}`;
         }
 
-        // 取得狀態標籤的顯示文字
         function getStatusLabel(status) {
             const statusObj = taskStatuses.find(s => s.value === status);
             return statusObj ? statusObj.label : status;
         }
 
-        // 獲取狀態顏色
         function getStatusColor(status) {
             const colorMap = {
                 'pending': '#f0f0f0',
@@ -2606,7 +2265,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             return colorMap[status] || '#f0f0f0';
         }
 
-        // 獲取狀態邊框顏色
         function getStatusBorderColor(status) {
             const colorMap = {
                 'pending': '#666',
@@ -2617,60 +2275,52 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             return colorMap[status] || '#666';
         }
 
-        // 渲染 Top Tasks
         function renderTopTasks() {
-    const container = document.getElementById('taskList');
-    container.innerHTML = '';
-    
-    if (topTasks.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">尚無專案資料</p>';
-        return;
-    }
-    
-    topTasks.forEach((task, index) => {
-        // 只有在有 currentTopTaskId 時才顯示選中狀態
-        const isActive = currentTopTaskId && task.id === currentTopTaskId;
-        const taskElement = document.createElement('div');
-        taskElement.className = `task-item ${isActive ? 'active' : ''}`;
-        taskElement.innerHTML = `
-            <div class="task-icon">${isActive ? '●' : '○'}</div>
-            <div class="task-content">
-                <div class="task-name">${task.name}</div>
-            </div>
-            <button class="task-edit-btn" onclick="event.stopPropagation(); openEditTaskModal(${task.id})">🔍</button>
-        `;
-        taskElement.onclick = () => selectTopTask(task.id);
-        container.appendChild(taskElement);
-    });
-}
+            const container = document.getElementById('taskList');
+            container.innerHTML = '';
+            
+            if (topTasks.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">尚無專案資料</p>';
+                return;
+            }
+            
+            topTasks.forEach((task, index) => {
+                const isActive = currentTopTaskId && task.id === currentTopTaskId;
+                const taskElement = document.createElement('div');
+                taskElement.className = `task-item ${isActive ? 'active' : ''}`;
+                taskElement.innerHTML = `
+                    <div class="task-icon">${isActive ? '●' : '○'}</div>
+                    <div class="task-content">
+                        <div class="task-name">${task.name}</div>
+                    </div>
+                    <button class="task-edit-btn" onclick="event.stopPropagation(); openEditTaskModal(${task.id})">🔍</button>
+                `;
+                taskElement.onclick = () => selectTopTask(task.id);
+                container.appendChild(taskElement);
+            });
+        }
 
-        // 選擇 Top Task
-       function selectTopTask(taskId) {
-    currentTopTaskId = taskId;
-    const task = topTasks.find(t => t.id === taskId);
-    
-    if (!task) return;
-    
-    // 更新左側選中狀態
-    renderTopTasks();
+        function selectTopTask(taskId) {
+            currentTopTaskId = taskId;
+            const task = topTasks.find(t => t.id === taskId);
+            
+            if (!task) return;
+            
+            renderTopTasks();
 
-    // 新增或切換到對應標籤（但不自動切換）
-    const existingTab = document.querySelector(`[data-tab="task-${taskId}"]`);
-    if (!existingTab) {
-        addTab(task.name, `task-${taskId}`);
-    }
-    
-    // 手動切換到該標籤（用戶點擊時才切換）
-    switchTab(`task-${taskId}`);
-    renderSubTasks();
-    
-    // 如果當前是心智圖模式，更新心智圖
-    if (currentMode === 'mindmap') {
-        renderMindMap();
-    }
-}
+            const existingTab = document.querySelector(`[data-tab="task-${taskId}"]`);
+            if (!existingTab) {
+                addTab(task.name, `task-${taskId}`);
+            }
+            
+            switchTab(`task-${taskId}`);
+            renderSubTasks();
+            
+            if (currentMode === 'mindmap') {
+                renderMindMap();
+            }
+        }
 
-        // 新增標籤
         function addTab(name, tabId) {
             const navTabs = document.getElementById('navTabs');
             const newTab = document.createElement('div');
@@ -2681,54 +2331,45 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             navTabs.appendChild(newTab);
         }
 
-        // 切換標籤
         function switchTab(tabId) {
-    // 更新標籤狀態
-    document.querySelectorAll('.nav-tab').forEach(tab => {
-        tab.classList.toggle('active', tab.getAttribute('data-tab') === tabId);
-    });
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.getAttribute('data-tab') === tabId);
+            });
 
-    // 更新內容區域
-    if (tabId === 'home') {
-        document.getElementById('home-content').style.display = 'block';
-        document.getElementById('subtask-content').style.display = 'none';
-        
-        // 清空當前專案選擇狀態
-        currentTopTaskId = null;
-        renderTopTasks(); // 重新渲染，清除選中狀態
-        
-    } else {
-        document.getElementById('home-content').style.display = 'none';
-        document.getElementById('subtask-content').style.display = 'block';
-        
-        // 如果切換到任務標籤，設置對應的專案ID
-        if (tabId.startsWith('task-')) {
-            const taskId = parseInt(tabId.split('-')[1]);
-            currentTopTaskId = taskId;
-            renderTopTasks(); // 更新選中狀態
-            renderSubTasks();
-            
-            // 如果是心智圖模式，重新渲染心智圖
-            if (currentMode === 'mindmap') {
-                renderMindMap();
+            if (tabId === 'home') {
+                document.getElementById('home-content').style.display = 'block';
+                document.getElementById('subtask-content').style.display = 'none';
+                
+                currentTopTaskId = null;
+                renderTopTasks();
+                
+            } else {
+                document.getElementById('home-content').style.display = 'none';
+                document.getElementById('subtask-content').style.display = 'block';
+                
+                if (tabId.startsWith('task-')) {
+                    const taskId = parseInt(tabId.split('-')[1]);
+                    currentTopTaskId = taskId;
+                    renderTopTasks();
+                    renderSubTasks();
+                    
+                    if (currentMode === 'mindmap') {
+                        renderMindMap();
+                    }
+                }
             }
         }
-    }
-}
 
-        // 關閉標籤
         function closeTab(tabId) {
             const tab = document.querySelector(`[data-tab="${tabId}"]`);
             if (tab) {
                 tab.remove();
-                // 如果關閉的是當前標籤，切換到 Home
                 if (tab.classList.contains('active')) {
                     switchTab('home');
                 }
             }
         }
 
-        // 獲取所有子任務（包括嵌套的）
         function getAllSubTasks(tasks) {
             let allTasks = [];
             tasks.forEach(task => {
@@ -2740,7 +2381,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             return allTasks;
         }
 
-        // 切換模式
         function switchMode(mode) {
             currentMode = mode;
             document.querySelectorAll('.mode-btn').forEach(btn => {
@@ -2748,12 +2388,10 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             });
             event.target.classList.add('active');
 
-            // 隱藏所有視圖
             document.getElementById('project-view').classList.remove('active');
             document.getElementById('assignee-view').classList.remove('active');
             document.getElementById('mindmap-view').classList.remove('active');
 
-            // 顯示對應視圖
             if (mode === 'project') {
                 document.getElementById('project-view').classList.add('active');
                 renderSubTasks();
@@ -2766,7 +2404,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             }
         }
 
-        // 渲染 Sub Tasks
         function renderSubTasks() {
             if (!currentTopTaskId) return;
 
@@ -2781,7 +2418,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                 return;
             }
 
-            // 遞歸渲染子任務
             function renderTaskItem(subTask, level = 0) {
                 const statusLabel = getStatusLabel(subTask.status);
                 const statusClass = getStatusClass(subTask.status);
@@ -2792,7 +2428,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                             <div class="subtask-name">${subTask.name}</div>
                             <div class="subtask-assignee">負責人: ${subTask.assignee || '未指派'} | 預估工時: ${subTask.hours || 0}小時</div>
                             <div class="subtask-status ${statusClass}">${statusLabel}</div>
-                            ${subTask.link ? `<a href="${subTask.link}" target="_blank" style="font-size: 12px;">📎 相關文件</a>` : ''}
                         </div>
                         <div class="subtask-actions">
                             <button class="action-btn" onclick="editSubTask(${subTask.id})">編輯</button>
@@ -2802,7 +2437,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                 `;
                 container.innerHTML += subTaskHTML;
                 
-                // 渲染子任務的子任務
                 if (subTask.children && subTask.children.length > 0) {
                     subTask.children.forEach(child => {
                         renderTaskItem(child, level + 1);
@@ -2815,7 +2449,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             });
         }
 
-        // 渲染負責人視圖
         function renderAssigneeView() {
             if (!currentTopTaskId) return;
 
@@ -2825,10 +2458,8 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             const container = document.getElementById('assignee-view');
             container.innerHTML = '';
 
-            // 獲取所有任務（包括嵌套的）
             const allTasks = getAllSubTasks(task.subTasks);
 
-            // 按負責人分組
             const assigneeGroups = {};
             allTasks.forEach(subTask => {
                 const assignee = subTask.assignee || '未指派';
@@ -2870,7 +2501,7 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             });
         }
 
-        // 開啟新增 Top Task 模態框
+        // 模態框操作
         function openAddTaskModal() {
             editingTaskId = null;
             document.getElementById('modalTitle').textContent = '新增專案';
@@ -2878,7 +2509,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             document.getElementById('editBtn').style.display = 'none';
             document.getElementById('deleteBtn').style.display = 'none';
             
-            // 清空表單
             document.getElementById('taskName').value = '';
             document.getElementById('taskDescription').value = '';
             document.getElementById('taskBudget').value = '';
@@ -2887,7 +2517,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             document.getElementById('addTaskModal').style.display = 'block';
         }
 
-        // 開啟編輯 Top Task 模態框
         function openEditTaskModal(taskId) {
             editingTaskId = taskId;
             const task = topTasks.find(t => t.id === taskId);
@@ -2899,7 +2528,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             document.getElementById('editBtn').style.display = 'inline-block';
             document.getElementById('deleteBtn').style.display = 'inline-block';
             
-            // 填入現有資料
             document.getElementById('taskName').value = task.name;
             document.getElementById('taskDescription').value = task.description;
             document.getElementById('taskBudget').value = task.budget || '';
@@ -2908,7 +2536,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             document.getElementById('addTaskModal').style.display = 'block';
         }
 
-        // 開啟新增 Sub Task 模態框
         function openAddSubTaskModal() {
             if (!currentTopTaskId) {
                 alert('請先選擇一個專案');
@@ -2918,13 +2545,11 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             editingSubTaskId = null;
             editingNodeData = null;
             
-            // 設置模態框為新增模式
             document.getElementById('subTaskModalTitle').textContent = '新增 Sub Task';
             document.getElementById('subTaskAddBtn').style.display = 'inline-block';
             document.getElementById('subTaskEditBtn').style.display = 'none';
             document.getElementById('subTaskDeleteBtn').style.display = 'none';
             
-            // 清空表單
             document.getElementById('subTaskName').value = '';
             document.getElementById('subTaskAssignee').value = '';
             document.getElementById('subTaskHours').value = '';
@@ -2933,11 +2558,9 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             document.getElementById('addSubTaskModal').style.display = 'block';
         }
 
-        // 關閉模態框
         function closeModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
             
-            // 清空編輯狀態
             if (modalId === 'addTaskModal') {
                 editingTaskId = null;
             } else if (modalId === 'addSubTaskModal') {
@@ -2946,7 +2569,7 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             }
         }
 
-        // 新增 Top Task
+        // CRUD 操作
         function addTopTask() {
             const name = document.getElementById('taskName').value.trim();
             const description = document.getElementById('taskDescription').value.trim();
@@ -2974,7 +2597,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             saveDataToLocalStorage();
         }
 
-        // 更新 Top Task
         function updateTopTask() {
             if (!editingTaskId) return;
 
@@ -2998,10 +2620,8 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                 renderTopTasks();
                 renderDashboard();
                 
-                // 更新對應的標籤名稱
                 const tab = document.querySelector(`[data-tab="task-${editingTaskId}"]`);
                 if (tab) {
-                    const closeBtn = tab.querySelector('.close-tab');
                     tab.innerHTML = `${name} <span class="close-tab" onclick="event.stopPropagation(); closeTab('task-${editingTaskId}')">&times;</span>`;
                     tab.onclick = () => switchTab(`task-${editingTaskId}`);
                 }
@@ -3009,22 +2629,18 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                 closeModal('addTaskModal');
                 saveDataToLocalStorage();
                 
-                // 如果是當前選中的任務且在心智圖模式，重新渲染
                 if (currentTopTaskId === editingTaskId && currentMode === 'mindmap') {
                     renderMindMap();
                 }
             }
         }
 
-        // 確認刪除 Top Task
         function confirmDeleteTask() {
             if (!editingTaskId) return;
-            // 不要在這裡關閉模態框，保持 editingTaskId
             document.getElementById('addTaskModal').style.display = 'none';
             document.getElementById('confirmDeleteModal').style.display = 'block';
         }
 
-        // 刪除 Top Task
         function deleteTopTask() {
             if (!editingTaskId) return;
 
@@ -3034,7 +2650,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                 renderTopTasks();
                 renderDashboard();
                 
-                // 如果刪除的是當前選中的任務，關閉對應標籤
                 if (currentTopTaskId === editingTaskId) {
                     closeTab(`task-${editingTaskId}`);
                     currentTopTaskId = null;
@@ -3047,7 +2662,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             editingTaskId = null;
         }
 
-        // 新增 Sub Task
         function addSubTask() {
             if (!currentTopTaskId) return;
 
@@ -3065,10 +2679,8 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             if (!task) return;
             
             if (editingNodeData && currentMode === 'mindmap') {
-                // 從心智圖新增，更新節點資訊
                 const noteText = `負責人: ${assignee}\n預估工時: ${hours}小時\n狀態: ${getStatusLabel(status)}`;
                 
-                // 更新心智圖節點
                 mindMapInstance.execCommand('SET_NODE_TEXT', editingNodeData, name);
                 mindMapInstance.execCommand('SET_NODE_NOTE', editingNodeData, noteText);
                 mindMapInstance.execCommand('SET_NODE_STYLE', editingNodeData, {
@@ -3080,13 +2692,9 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                     borderRadius: 5
                 });
                 
-                // 給節點設置一個唯一 ID
                 editingNodeData.uid = Date.now();
-                
-                // 同步到原始數據
                 syncMindMapChangesToData();
             } else {
-                // 從列表新增
                 const newSubTask = {
                     id: Date.now(),
                     name: name,
@@ -3102,7 +2710,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                 renderDashboard();
                 saveDataToLocalStorage();
 
-                // 如果當前是負責人模式，重新渲染
                 if (currentMode === 'assignee') {
                     renderAssigneeView();
                 } else if (currentMode === 'mindmap') {
@@ -3114,10 +2721,8 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             editingNodeData = null;
         }
 
-        // 編輯 Sub Task
         function editSubTask(subTaskId) {
             if (currentMode === 'mindmap') {
-                // 在心智圖模式下，subTaskId 可能不會傳入
                 return;
             }
             
@@ -3126,7 +2731,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             const task = topTasks.find(t => t.id === currentTopTaskId);
             if (!task) return;
             
-            // 查找子任務
             let foundSubTask = null;
             function findSubTask(tasks) {
                 for (let subTask of tasks) {
@@ -3148,19 +2752,16 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             }
         }
 
-        // 從心智圖節點編輯任務
         function editNodeTask(node) {
             if (!node || !node.nodeData) return;
             
             const nodeData = node.nodeData.data;
-            if (nodeData.isRoot) return; // 不編輯根節點
+            if (nodeData.isRoot) return;
             
             editingNodeData = node;
             
-            // 嘗試從節點獲取任務ID
             const nodeUid = node.uid;
             if (nodeUid) {
-                // 查找對應的子任務
                 const task = topTasks.find(t => t.id === currentTopTaskId);
                 if (task) {
                     let foundSubTask = null;
@@ -3184,7 +2785,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                 }
             }
             
-            // 嘗試從節點的 note 中解析任務資訊
             const noteLines = (nodeData.note || '').split('\n');
             let assignee = '';
             let hours = 0;
@@ -3202,7 +2802,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                 }
             });
             
-            // 打開編輯模態框
             document.getElementById('subTaskModalTitle').textContent = '編輯 Sub Task';
             document.getElementById('subTaskAddBtn').style.display = 'none';
             document.getElementById('subTaskEditBtn').style.display = 'inline-block';
@@ -3216,27 +2815,24 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             document.getElementById('addSubTaskModal').style.display = 'block';
         }
 
-        // 從心智圖新增子任務時開啟模態框
         function openAddSubTaskModalFromMindMap(node) {
-    if (!node) return;
-    
-    editingNodeData = node;
-    
-    // 清空表單，不要預設任何文字
-    document.getElementById('subTaskModalTitle').textContent = '新增 Sub Task';
-    document.getElementById('subTaskAddBtn').style.display = 'inline-block';
-    document.getElementById('subTaskEditBtn').style.display = 'none';
-    document.getElementById('subTaskDeleteBtn').style.display = 'none';
-    
-    // 完全清空，不預設任何內容
-    document.getElementById('subTaskName').value = '';
-    document.getElementById('subTaskAssignee').value = '';
-    document.getElementById('subTaskHours').value = '';
-    document.getElementById('subTaskStatus').value = 'pending';
-    
-    document.getElementById('addSubTaskModal').style.display = 'block';
-}
-        // 開啟編輯子任務模態框
+            if (!node) return;
+            
+            editingNodeData = node;
+            
+            document.getElementById('subTaskModalTitle').textContent = '新增 Sub Task';
+            document.getElementById('subTaskAddBtn').style.display = 'inline-block';
+            document.getElementById('subTaskEditBtn').style.display = 'none';
+            document.getElementById('subTaskDeleteBtn').style.display = 'none';
+            
+            document.getElementById('subTaskName').value = '';
+            document.getElementById('subTaskAssignee').value = '';
+            document.getElementById('subTaskHours').value = '';
+            document.getElementById('subTaskStatus').value = 'pending';
+            
+            document.getElementById('addSubTaskModal').style.display = 'block';
+        }
+
         function openEditSubTaskModal(subTask) {
             editingSubTaskId = subTask.id;
             
@@ -3253,7 +2849,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             document.getElementById('addSubTaskModal').style.display = 'block';
         }
 
-        // 更新子任務
         function updateSubTask() {
             const name = document.getElementById('subTaskName').value.trim();
             const assignee = document.getElementById('subTaskAssignee').value;
@@ -3266,10 +2861,8 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             }
 
             if (editingNodeData && currentMode === 'mindmap') {
-                // 從心智圖更新
                 const noteText = `負責人: ${assignee}\n預估工時: ${hours}小時\n狀態: ${getStatusLabel(status)}`;
                 
-                // 更新心智圖節點
                 mindMapInstance.execCommand('SET_NODE_TEXT', editingNodeData, name);
                 mindMapInstance.execCommand('SET_NODE_NOTE', editingNodeData, noteText);
                 mindMapInstance.execCommand('SET_NODE_STYLE', editingNodeData, {
@@ -3277,10 +2870,8 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
                     borderColor: getStatusBorderColor(status)
                 });
                 
-                // 同步到原始數據
                 syncMindMapChangesToData();
             } else if (editingSubTaskId) {
-                // 從列表更新
                 const task = topTasks.find(t => t.id === currentTopTaskId);
                 if (!task) return;
                 
@@ -3312,22 +2903,16 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             editingSubTaskId = null;
         }
 
-        // 確認刪除子任務
         function confirmDeleteSubTask() {
             document.getElementById('addSubTaskModal').style.display = 'none';
             document.getElementById('confirmDeleteSubTaskModal').style.display = 'block';
         }
 
-        // 執行刪除子任務
         function deleteSubTaskConfirmed() {
             if (editingNodeData && currentMode === 'mindmap') {
-                // 從心智圖刪除
                 mindMapInstance.execCommand('REMOVE_NODE', editingNodeData);
-                
-                // 同步到原始數據
                 syncMindMapChangesToData();
             } else if (editingSubTaskId) {
-                // 從列表刪除
                 deleteSubTask(editingSubTaskId);
             }
             
@@ -3336,80 +2921,73 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             editingSubTaskId = null;
         }
 
-        // 同步心智圖變更到原始數據
-       function syncMindMapChangesToData() {
-    if (!mindMapInstance || !currentTopTaskId) return;
-    
-    const task = topTasks.find(t => t.id === currentTopTaskId);
-    if (!task) return;
-    
-    // 獲取心智圖的最新數據
-    const mindMapData = mindMapInstance.getData();
-    
-    // 轉換心智圖數據回原始格式
-    function convertFromMindMapData(nodeData, parentId = null) {
-        const subTasks = [];
-        
-        if (nodeData.children && nodeData.children.length > 0) {
-            nodeData.children.forEach(child => {
-                const childData = child.data;
+        function syncMindMapChangesToData() {
+            if (!mindMapInstance || !currentTopTaskId) return;
+            
+            const task = topTasks.find(t => t.id === currentTopTaskId);
+            if (!task) return;
+            
+            const mindMapData = mindMapInstance.getData();
+            
+            function convertFromMindMapData(nodeData, parentId = null) {
+                const subTasks = [];
                 
-                // 從 note 解析任務資訊
-                const noteLines = (childData.note || '').split('\n');
-                let assignee = '';
-                let hours = 0;
-                let status = 'pending';
+                if (nodeData.children && nodeData.children.length > 0) {
+                    nodeData.children.forEach(child => {
+                        const childData = child.data;
+                        
+                        const noteLines = (childData.note || '').split('\n');
+                        let assignee = '';
+                        let hours = 0;
+                        let status = 'pending';
+                        
+                        noteLines.forEach(line => {
+                            if (line.includes('負責人:')) {
+                                assignee = line.replace('負責人:', '').trim();
+                            } else if (line.includes('預估工時:')) {
+                                hours = parseInt(line.replace('預估工時:', '').replace('小時', '').trim()) || 0;
+                            } else if (line.includes('狀態:')) {
+                                const statusLabel = line.replace('狀態:', '').trim();
+                                const statusObj = taskStatuses.find(s => s.label === statusLabel);
+                                if (statusObj) status = statusObj.value;
+                            }
+                        });
+                        
+                        const subTask = {
+                            id: child.uid || Date.now() + Math.random(),
+                            name: childData.text.replace(/<[^>]*>/g, '').trim(),
+                            assignee: assignee,
+                            hours: hours,
+                            status: status,
+                            children: convertFromMindMapData(child)
+                        };
+                        
+                        subTasks.push(subTask);
+                    });
+                }
                 
-                noteLines.forEach(line => {
-                    if (line.includes('負責人:')) {
-                        assignee = line.replace('負責人:', '').trim();
-                    } else if (line.includes('預估工時:')) {
-                        hours = parseInt(line.replace('預估工時:', '').replace('小時', '').trim()) || 0;
-                    } else if (line.includes('狀態:')) {
-                        const statusLabel = line.replace('狀態:', '').trim();
-                        const statusObj = taskStatuses.find(s => s.label === statusLabel);
-                        if (statusObj) status = statusObj.value;
-                    }
-                });
-                
-                const subTask = {
-                    id: child.uid || Date.now() + Math.random(),
-                    name: childData.text,
-                    assignee: assignee,
-                    hours: hours,
-                    status: status,
-                    children: convertFromMindMapData(child)
-                };
-                
-                subTasks.push(subTask);
-            });
+                return subTasks;
+            }
+            
+            task.subTasks = convertFromMindMapData(mindMapData);
+            renderSubTasks();
+            saveDataToLocalStorage();
+            
+            if (window.dashboardUpdateTimer) {
+                clearTimeout(window.dashboardUpdateTimer);
+            }
+            
+            window.dashboardUpdateTimer = setTimeout(() => {
+                renderDashboard();
+            }, 2000);
         }
-        
-        return subTasks;
-    }
-    
-    // 更新任務數據
-    task.subTasks = convertFromMindMapData(mindMapData);
-    
-    // 更新其他視圖
-    renderSubTasks();
-    saveDataToLocalStorage();
-    
-    // 延遲更新 Dashboard，確保當前操作完成
-    setTimeout(() => {
-        console.log('延遲更新 Dashboard...');
-        renderDashboard();
-    }, 1000);  // 延遲1秒
-}
 
-        // 刪除 Sub Task（支援嵌套結構）
         function deleteSubTask(subTaskId) {
             if (!currentTopTaskId) return;
 
             const task = topTasks.find(t => t.id === currentTopTaskId);
             if (!task) return;
             
-            // 遞歸刪除函數
             function removeSubTask(tasks) {
                 for (let i = 0; i < tasks.length; i++) {
                     if (tasks[i].id === subTaskId) {
@@ -3436,7 +3014,7 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             }
         }
 
-        // 儲存資料到 localStorage
+        // 資料儲存
         function saveDataToLocalStorage() {
             const data = {
                 projects: topTasks,
@@ -3446,7 +3024,6 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             localStorage.setItem('project-data', JSON.stringify(data));
         }
 
-        // 從 localStorage 載入資料
         function loadDataFromLocalStorage() {
             const data = localStorage.getItem('project-data');
             if (data) {
@@ -3459,43 +3036,35 @@ function drawMiniMapNodes(svg, nodeData, x, y, level) {
             return false;
         }
 
-        // 點擊模態框外部關閉
+        // 事件監聽
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) {
                 event.target.style.display = 'none';
             }
         }
 
-        // 監聽鍵盤事件
-       document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM 載入完成，開始初始化...');
-    
-    // 檢查腳本是否載入完成
-    function checkScriptsLoaded() {
-        const hasSimpleMindMap = !!(window.simpleMindMap || window.SimpleMindMap);
-        // 修正 MiniMap 檢測邏輯
-        const hasMiniMap = !!window.MiniMap;
-        
-        console.log('腳本載入狀態:', {
-            SimpleMindMap: hasSimpleMindMap,
-            MiniMap: hasMiniMap,
-            // 詳細檢查
-            'window.MiniMap': !!window.MiniMap,
-            'window.MiniMap.default': !!(window.MiniMap && window.MiniMap.default),
-            'typeof window.MiniMap': typeof window.MiniMap
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM 載入完成，開始初始化...');
+            
+            function checkScriptsLoaded() {
+                const hasSimpleMindMap = !!(window.simpleMindMap || window.SimpleMindMap);
+                const hasMiniMap = !!window.MiniMap;
+                
+                console.log('腳本載入狀態:', {
+                    SimpleMindMap: hasSimpleMindMap,
+                    MiniMap: hasMiniMap
+                });
+                
+                if (hasSimpleMindMap) {
+                    loadMockData();
+                } else {
+                    console.log('腳本尚未載入完成，1秒後重試...');
+                    setTimeout(checkScriptsLoaded, 1000);
+                }
+            }
+            
+            setTimeout(checkScriptsLoaded, 500);
         });
-        
-        if (hasSimpleMindMap) {
-            loadMockData();
-        } else {
-            console.log('腳本尚未載入完成，1秒後重試...');
-            setTimeout(checkScriptsLoaded, 1000);
-        }
-    }
-    
-    // 延遲檢查腳本載入狀態
-    setTimeout(checkScriptsLoaded, 500);
-});
     </script>
 </body>
 </html>
