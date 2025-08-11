@@ -2011,14 +2011,26 @@ function bindMindMapEvents() {
         console.log('心智圖繪製完成');
     });
 
-    // 保持 node_insert 事件處理，但簡化邏輯
+    // 修正：只在節點確實有內容時才開啟模態框
     mindMapInstance.on('node_insert', (node) => {
         console.log('📝 節點插入事件觸發:', node);
         
         if (isEditMode && node) {
-            setTimeout(() => {
-                openAddSubTaskModalFromMindMap(node);
-            }, 100);
+            // 檢查節點是否有默認文字（表示是新創建的空節點）
+            const nodeText = node.nodeData?.data?.text || '';
+            const isEmptyNode = nodeText === '' || nodeText === '新任務' || nodeText === '新工時';
+            
+            if (isEmptyNode) {
+                // 只對空節點開啟模態框
+                setTimeout(() => {
+                    // 檢查節點類型決定開啟哪個模態框
+                    if (node.nodeData?.data?.isWorktime) {
+                        openAddWorktimeModalFromMindMap(node);
+                    } else {
+                        openAddSubTaskModalFromMindMap(node);
+                    }
+                }, 100);
+            }
         }
     });
 }
@@ -2065,6 +2077,9 @@ function openAddWorktimeModalFromMindMap(node) {
     
     editingWorktimeNode = node;
     editingWorktimeId = null;
+    
+    // 標記這是一個新創建的節點
+    node._isNewNode = true;
     
     document.getElementById('worktimeModalTitle').textContent = '新增工時';
     document.getElementById('worktimeAddBtn').style.display = 'inline-block';
@@ -3044,9 +3059,31 @@ function confirmDeleteWorktime() {
     if (modalId === 'addTaskModal') {
         editingTaskId = null;
     } else if (modalId === 'addSubTaskModal') {
+        // 如果是取消新增子任務，且是新創建的節點，則刪除它
+        if (editingNodeData && editingNodeData._isNewNode) {
+            console.log('🗑️ 取消新增子任務，刪除空節點');
+            setTimeout(() => {
+                try {
+                    mindMapInstance.execCommand('REMOVE_NODE', editingNodeData);
+                } catch (error) {
+                    console.error('刪除空節點失敗:', error);
+                }
+            }, 10);
+        }
         editingSubTaskId = null;
         editingNodeData = null;
     } else if (modalId === 'addWorktimeModal') {
+        // 如果是取消新增工時，且是新創建的節點，則刪除它
+        if (editingWorktimeNode && editingWorktimeNode._isNewNode) {
+            console.log('🗑️ 取消新增工時，刪除空節點');
+            setTimeout(() => {
+                try {
+                    mindMapInstance.execCommand('REMOVE_NODE', editingWorktimeNode);
+                } catch (error) {
+                    console.error('刪除空工時節點失敗:', error);
+                }
+            }, 10);
+        }
         editingWorktimeId = null;
         editingWorktimeNode = null;
     }
@@ -3146,63 +3183,66 @@ function confirmDeleteWorktime() {
         }
 
         function addSubTask() {
-            if (!currentTopTaskId) return;
+    if (!currentTopTaskId) return;
 
-            const name = document.getElementById('subTaskName').value.trim();
-            const assignee = document.getElementById('subTaskAssignee').value;
-            const hours = parseInt(document.getElementById('subTaskHours').value) || 0;
-            const status = document.getElementById('subTaskStatus').value || 'pending';
+    const name = document.getElementById('subTaskName').value.trim();
+    const assignee = document.getElementById('subTaskAssignee').value;
+    const hours = parseInt(document.getElementById('subTaskHours').value) || 0;
+    const status = document.getElementById('subTaskStatus').value || 'pending';
 
-            if (!name) {
-                alert('請輸入任務名稱');
-                return;
-            }
+    if (!name) {
+        alert('請輸入任務名稱');
+        return;
+    }
 
-            const task = topTasks.find(t => t.id === currentTopTaskId);
-            if (!task) return;
-            
-            if (editingNodeData && currentMode === 'mindmap') {
-                const noteText = `負責人: ${assignee}\n預估工時: ${hours}小時\n狀態: ${getStatusLabel(status)}`;
-                
-                mindMapInstance.execCommand('SET_NODE_TEXT', editingNodeData, name);
-                mindMapInstance.execCommand('SET_NODE_NOTE', editingNodeData, noteText);
-                mindMapInstance.execCommand('SET_NODE_STYLE', editingNodeData, {
-                    backgroundColor: getStatusColor(status),
-                    borderColor: getStatusBorderColor(status),
-                    fontSize: 14,
-                    color: '#333',
-                    borderWidth: 2,
-                    borderRadius: 5
-                });
-                
-                editingNodeData.uid = Date.now();
-                syncMindMapChangesToData();
-            } else {
-                const newSubTask = {
-                    id: Date.now(),
-                    name: name,
-                    assignee: assignee,
-                    hours: hours,
-                    status: status,
-                    children: []
-                };
+    const task = topTasks.find(t => t.id === currentTopTaskId);
+    if (!task) return;
+    
+    if (editingNodeData && currentMode === 'mindmap') {
+        const noteText = `負責人: ${assignee}\n預估工時: ${hours}小時\n狀態: ${getStatusLabel(status)}`;
+        
+        mindMapInstance.execCommand('SET_NODE_TEXT', editingNodeData, name);
+        mindMapInstance.execCommand('SET_NODE_NOTE', editingNodeData, noteText);
+        mindMapInstance.execCommand('SET_NODE_STYLE', editingNodeData, {
+            backgroundColor: getStatusColor(status),
+            borderColor: getStatusBorderColor(status),
+            fontSize: 14,
+            color: '#333',
+            borderWidth: 2,
+            borderRadius: 5
+        });
+        
+        // 移除新節點標記
+        editingNodeData._isNewNode = false;
+        editingNodeData.uid = Date.now();
+        
+        syncMindMapChangesToData();
+    } else {
+        const newSubTask = {
+            id: Date.now(),
+            name: name,
+            assignee: assignee,
+            hours: hours,
+            status: status,
+            children: []
+        };
 
-                task.subTasks.push(newSubTask);
-                
-                renderSubTasks();
-                renderDashboard();
-                saveDataToLocalStorage();
+        task.subTasks.push(newSubTask);
+        
+        renderSubTasks();
+        renderDashboard();
+        saveDataToLocalStorage();
 
-                if (currentMode === 'assignee') {
-                    renderAssigneeView();
-                } else if (currentMode === 'mindmap') {
-                    renderMindMap();
-                }
-            }
-
-            closeModal('addSubTaskModal');
-            editingNodeData = null;
+        if (currentMode === 'assignee') {
+            renderAssigneeView();
+        } else if (currentMode === 'mindmap') {
+            renderMindMap();
         }
+    }
+
+    closeModal('addSubTaskModal');
+    editingNodeData = null;
+}
 
         function editSubTask(subTaskId) {
             if (currentMode === 'mindmap') {
@@ -3299,22 +3339,25 @@ function confirmDeleteWorktime() {
         }
 
         function openAddSubTaskModalFromMindMap(node) {
-            if (!node) return;
-            
-            editingNodeData = node;
-            
-            document.getElementById('subTaskModalTitle').textContent = '新增 Sub Task';
-            document.getElementById('subTaskAddBtn').style.display = 'inline-block';
-            document.getElementById('subTaskEditBtn').style.display = 'none';
-            document.getElementById('subTaskDeleteBtn').style.display = 'none';
-            
-            document.getElementById('subTaskName').value = '';
-            document.getElementById('subTaskAssignee').value = '';
-            document.getElementById('subTaskHours').value = '';
-            document.getElementById('subTaskStatus').value = 'pending';
-            
-            document.getElementById('addSubTaskModal').style.display = 'block';
-        }
+    if (!node) return;
+    
+    editingNodeData = node;
+    
+    // 標記這是一個新創建的節點
+    node._isNewNode = true;
+    
+    document.getElementById('subTaskModalTitle').textContent = '新增 Sub Task';
+    document.getElementById('subTaskAddBtn').style.display = 'inline-block';
+    document.getElementById('subTaskEditBtn').style.display = 'none';
+    document.getElementById('subTaskDeleteBtn').style.display = 'none';
+    
+    document.getElementById('subTaskName').value = '';
+    document.getElementById('subTaskAssignee').value = '';
+    document.getElementById('subTaskHours').value = '';
+    document.getElementById('subTaskStatus').value = 'pending';
+    
+    document.getElementById('addSubTaskModal').style.display = 'block';
+}
 
         function openEditSubTaskModal(subTask) {
             editingSubTaskId = subTask.id;
