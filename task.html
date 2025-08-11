@@ -1260,6 +1260,8 @@
         let miniMindMaps = {};
         let editingWorktimeId = null;
         let editingWorktimeNode = null;
+        let currentSelectedSubTaskId = null;
+        let currentSelectedSubTaskName = null;
 
         class WorktimeControlPlugin {
     constructor(opt) {
@@ -1461,44 +1463,184 @@ WorktimeControlPlugin.pluginName = 'WorktimeControl';
         let viewBoxContainer = null;
 
         // API 配置
-        const API_BASE_URL = './projects-mock-data.json';
+        const API_BASE_URL ='http://10.1.1.88:5251';
 
-        // 載入 Mock 資料
-        async function loadMockData() {
-            try {
-                console.log('🔍 正在 fetch：', API_BASE_URL);
-                const response = await fetch(API_BASE_URL);
+        async function apiRequest(endpoint, method = 'POST', data = null) {
+    try {
+        const url = `${API_BASE_URL}${endpoint}`;
+        console.log(`🌐 API ${method} 請求:`, url);
+        
+        const config = {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        };
+        
+        if (data) {
+            config.body = JSON.stringify(data);
+            console.log('📤 請求資料:', data);
+        }
+        
+        const response = await fetch(url, config);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const result = await response.json();
+        console.log('📥 回應資料:', result);
+        return result;
+        
+    } catch (error) {
+        console.error('❌ API 請求失敗:', error);
+        throw error;
+    }
+}
+        
+        // 載入專案列表
+      async function loadMockData() {
+    try {
+        console.log('🔍 載入專案列表...');
+        
+        // 同時載入專案列表和員工列表
+        const [projectsResult, employeesResult] = await Promise.all([
+            apiRequest('/api/toptasks/list', 'POST', { "includeDeleted": false }),
+            apiRequest('/api/employees/list', 'POST', {})
+        ]);
+        
+        // 處理專案資料
+        if (projectsResult.result === true && projectsResult.data && Array.isArray(projectsResult.data)) {
+            console.log('📊 API 專案數量:', projectsResult.data.length);
+            
+            topTasks = await Promise.all(projectsResult.data.map(async (item) => {
+                console.log('🔄 轉換專案:', item);
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                // 載入每個專案的子任務樹
+                let subTasks = [];
+                try {
+                    const subTasksResult = await apiRequest('/api/subtasks/tree', 'POST', { topTaskId: item.id });
+                    if (subTasksResult.result && subTasksResult.data) {
+                        subTasks = convertSubTasksTree(subTasksResult.data);
+                    }
+                } catch (error) {
+                    console.warn(`載入專案 ${item.id} 的子任務失敗:`, error);
                 }
                 
-                const data = await response.json();
-                console.log('✅ JSON 資料:', data);
-                
-                topTasks = data.projects || [];
-                assignees = data.assignees || [];
-                taskStatuses = data.taskStatuses || [];
-                initializeUI();
-            } catch (error) {
-                console.error('❌ 載入資料失敗:', error);
-                // 直接初始化空資料
-                topTasks = [];
-                assignees = [
-                    { name: "張三", department: "產品部" },
-                    { name: "李四", department: "數據分析部" },
-                    { name: "王五", department: "策略規劃部" },
-                    { name: "趙六", department: "技術部" }
-                ];
-                taskStatuses = [
-                    { value: "pending", label: "待開始" },
-                    { value: "in-progress", label: "進行中" },
-                    { value: "completed", label: "已完成" },
-                    { value: "on-hold", label: "暫停" }
-                ];
-                initializeUI();
-            }
+                return {
+                    id: item.id,
+                    name: item.name || '未命名專案',
+                    description: item.name || '未命名專案',
+                    budget: parseFloat(item.budget) || 0,
+                    owner: item.managerName || '未指派',
+                    createdAt: item.createdAt,
+                    actualHours: parseFloat(item.actualHours) || 0,
+                    subTasks: subTasks
+                };
+            }));
+            
+            console.log('✅ 轉換後的專案資料:', topTasks);
+        } else {
+            console.log('⚠️ 專案API回應格式不正確或無資料');
+            topTasks = [];
         }
+        
+        // 處理員工資料
+        if (employeesResult.result === true && employeesResult.data && Array.isArray(employeesResult.data)) {
+            assignees = employeesResult.data.map(emp => ({
+                id: emp.id,
+                name: emp.name,
+                department: '未知部門' // API沒有提供部門資訊
+            }));
+        } else {
+            assignees = [
+                { id: 1, name: "張三", department: "產品部" },
+                { id: 2, name: "李四", department: "數據分析部" },
+                { id: 3, name: "王五", department: "策略規劃部" },
+                { id: 4, name: "趙六", department: "技術部" }
+            ];
+        }
+        
+        // 任務狀態設定
+        taskStatuses = [
+            { value: "待開始", label: "待開始" },
+            { value: "進行中", label: "進行中" },
+            { value: "已完成", label: "已完成" },
+            { value: "暫停", label: "暫停" }
+        ];
+        
+        console.log('✅ 載入完成 - 專案:', topTasks.length, '員工:', assignees.length);
+        initializeUI();
+        
+    } catch (error) {
+        console.error('❌ 載入資料失敗:', error);
+        
+        // 使用本地備份或預設資料
+        if (!loadDataFromLocalStorage()) {
+            topTasks = [];
+            assignees = [
+                { id: 1, name: "張三", department: "產品部" },
+                { id: 2, name: "李四", department: "數據分析部" },
+                { id: 3, name: "王五", department: "策略規劃部" },
+                { id: 4, name: "趙六", department: "技術部" }
+            ];
+            taskStatuses = [
+                { value: "待開始", label: "待開始" },
+                { value: "進行中", label: "進行中" },
+                { value: "已完成", label: "已完成" },
+                { value: "暫停", label: "暫停" }
+            ];
+        }
+        
+        initializeUI();
+        
+        setTimeout(() => {
+            alert(`API 連接失敗：${error.message}\n已使用本地備用資料`);
+        }, 1000);
+    }
+}
+
+function convertSubTasksTree(apiSubTasks) {
+    return apiSubTasks.map(task => ({
+        id: task.id,
+        name: task.name,
+        assignee: task.assignee ? task.assignee.name : '未指派',
+        assigneeId: task.assignee ? task.assignee.id : null,
+        hours: task.estimatedHours || 0,
+        status: task.status || '待開始',
+        children: task.children ? convertSubTasksTree(task.children) : []
+    }));
+}
+
+
+async function apiRequest(endpoint, method = 'GET', data = null) {
+    try {
+        const config = {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        };
+        
+        if (data) {
+            config.body = JSON.stringify(data);
+        }
+        
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('API 請求失敗:', error);
+        throw error;
+    }
+}
+
 
         // 初始化 UI
         function initializeUI() {
@@ -1569,6 +1711,7 @@ WorktimeControlPlugin.pluginName = 'WorktimeControl';
     renderTopTasks();
     renderDashboard();
     switchTab('home');
+    startAutoSync()
     currentTopTaskId = null;
 }
 
@@ -2049,6 +2192,21 @@ function addWorktimeNode() {
             return;
         }
         
+        // 檢查是否為根節點
+        if (activeNode.nodeData.data.isRoot) {
+            alert('請選擇子任務節點來新增工時');
+            return;
+        }
+        
+        // 獲取子任務ID和名稱
+        currentSelectedSubTaskId = activeNode.uid || activeNode.nodeData.data.subTaskId;
+        currentSelectedSubTaskName = activeNode.nodeData.data.text;
+        
+        if (!currentSelectedSubTaskId) {
+            alert('無法獲取子任務ID，請確保選中的是有效的子任務節點');
+            return;
+        }
+        
         mindMapInstance.execCommand('INSERT_CHILD_NODE', false, [], {
             data: {
                 text: '新工時',
@@ -2068,7 +2226,7 @@ function addWorktimeNode() {
             }
         }, 100);
     } else {
-        alert('請先選擇一個節點');
+        alert('請先選擇一個子任務節點');
     }
 }
 
@@ -2081,15 +2239,62 @@ function openAddWorktimeModalFromMindMap(node) {
     // 標記這是一個新創建的節點
     node._isNewNode = true;
     
-    document.getElementById('worktimeModalTitle').textContent = '新增工時';
+    document.getElementById('worktimeModalTitle').textContent = `新增工時 - ${currentSelectedSubTaskName || '子任務'}`;
     document.getElementById('worktimeAddBtn').style.display = 'inline-block';
     document.getElementById('worktimeEditBtn').style.display = 'none';
     document.getElementById('worktimeDeleteBtn').style.display = 'none';
     
+    // 清空表單
     document.getElementById('worktimeName').value = '';
     document.getElementById('worktimeAssignee').value = '';
     document.getElementById('worktimeHours').value = '';
     document.getElementById('worktimeDescription').value = '';
+    
+    // 顯示關聯的子任務信息
+    if (currentSelectedSubTaskName) {
+        const modal = document.getElementById('addWorktimeModal');
+        let infoDiv = modal.querySelector('.subtask-info');
+        if (!infoDiv) {
+            infoDiv = document.createElement('div');
+            infoDiv.className = 'subtask-info';
+            infoDiv.style.cssText = 'background: #f0f8ff; padding: 10px; margin-bottom: 15px; border-radius: 4px; border-left: 4px solid #2196f3;';
+            modal.querySelector('.modal-body').insertBefore(infoDiv, modal.querySelector('.form-group'));
+        }
+        infoDiv.innerHTML = `<strong>關聯子任務：</strong>${currentSelectedSubTaskName}`;
+    }
+    
+    document.getElementById('addWorktimeModal').style.display = 'block';
+}
+
+
+function openAddWorktimeModalFromSubTask(subTaskId, subTaskName) {
+    currentSelectedSubTaskId = subTaskId;
+    currentSelectedSubTaskName = subTaskName;
+    
+    editingWorktimeNode = null;
+    editingWorktimeId = null;
+    
+    document.getElementById('worktimeModalTitle').textContent = `新增工時 - ${subTaskName}`;
+    document.getElementById('worktimeAddBtn').style.display = 'inline-block';
+    document.getElementById('worktimeEditBtn').style.display = 'none';
+    document.getElementById('worktimeDeleteBtn').style.display = 'none';
+    
+    // 清空表單
+    document.getElementById('worktimeName').value = '';
+    document.getElementById('worktimeAssignee').value = '';
+    document.getElementById('worktimeHours').value = '';
+    document.getElementById('worktimeDescription').value = '';
+    
+    // 顯示關聯的子任務信息
+    const modal = document.getElementById('addWorktimeModal');
+    let infoDiv = modal.querySelector('.subtask-info');
+    if (!infoDiv) {
+        infoDiv = document.createElement('div');
+        infoDiv.className = 'subtask-info';
+        infoDiv.style.cssText = 'background: #f0f8ff; padding: 10px; margin-bottom: 15px; border-radius: 4px; border-left: 4px solid #2196f3;';
+        modal.querySelector('.modal-body').insertBefore(infoDiv, modal.querySelector('.form-group'));
+    }
+    infoDiv.innerHTML = `<strong>關聯子任務：</strong>${subTaskName}`;
     
     document.getElementById('addWorktimeModal').style.display = 'block';
 }
@@ -2118,7 +2323,13 @@ function editWorktimeNode(node) {
         }
     });
     
-    document.getElementById('worktimeModalTitle').textContent = '編輯工時';
+    // 從父節點獲取子任務信息
+    if (node.parent && !node.parent.nodeData.data.isRoot) {
+        currentSelectedSubTaskId = node.parent.uid;
+        currentSelectedSubTaskName = node.parent.nodeData.data.text;
+    }
+    
+    document.getElementById('worktimeModalTitle').textContent = `編輯工時 - ${currentSelectedSubTaskName || '子任務'}`;
     document.getElementById('worktimeAddBtn').style.display = 'none';
     document.getElementById('worktimeEditBtn').style.display = 'inline-block';
     document.getElementById('worktimeDeleteBtn').style.display = 'inline-block';
@@ -2128,12 +2339,25 @@ function editWorktimeNode(node) {
     document.getElementById('worktimeHours').value = hours;
     document.getElementById('worktimeDescription').value = description;
     
+    // 顯示關聯的子任務信息
+    if (currentSelectedSubTaskName) {
+        const modal = document.getElementById('addWorktimeModal');
+        let infoDiv = modal.querySelector('.subtask-info');
+        if (!infoDiv) {
+            infoDiv = document.createElement('div');
+            infoDiv.className = 'subtask-info';
+            infoDiv.style.cssText = 'background: #f0f8ff; padding: 10px; margin-bottom: 15px; border-radius: 4px; border-left: 4px solid #2196f3;';
+            modal.querySelector('.modal-body').insertBefore(infoDiv, modal.querySelector('.form-group'));
+        }
+        infoDiv.innerHTML = `<strong>關聯子任務：</strong>${currentSelectedSubTaskName}`;
+    }
+    
     document.getElementById('addWorktimeModal').style.display = 'block';
-}
+}   
 
-function addWorktime() {
+async function addWorktime() {
     const name = document.getElementById('worktimeName').value.trim();
-    const assignee = document.getElementById('worktimeAssignee').value;
+    const assigneeName = document.getElementById('worktimeAssignee').value;
     const hours = parseFloat(document.getElementById('worktimeHours').value) || 0;
     const description = document.getElementById('worktimeDescription').value.trim();
 
@@ -2142,7 +2366,7 @@ function addWorktime() {
         return;
     }
 
-    if (!assignee) {
+    if (!assigneeName) {
         alert('請選擇負責人');
         return;
     }
@@ -2152,34 +2376,81 @@ function addWorktime() {
         return;
     }
 
-    if (editingWorktimeNode && currentMode === 'mindmap') {
-        const noteText = `負責人: ${assignee}\n工作時數: ${hours}小時\n工作內容: ${description}`;
-        
-        mindMapInstance.execCommand('SET_NODE_TEXT', editingWorktimeNode, name);
-        mindMapInstance.execCommand('SET_NODE_NOTE', editingWorktimeNode, noteText);
-        mindMapInstance.execCommand('SET_NODE_STYLE', editingWorktimeNode, {
-            backgroundColor: '#FFE4B5',
-            borderColor: '#DEB887',
-            fontSize: 13,
-            color: '#8B4513',
-            borderWidth: 2,
-            borderRadius: 5
-        });
-        
-        // 確保節點標記為工時類型
-        editingWorktimeNode.nodeData.data.isWorktime = true;
-        editingWorktimeNode.uid = Date.now();
-        
-        // 立即清理該節點的子節點
-        setTimeout(() => {
-            cleanWorktimeChildren();
-        }, 100);
-        
-        syncMindMapChangesToData();
+    if (!currentSelectedSubTaskId) {
+        alert('請先選擇一個子任務');
+        return;
     }
 
-    closeModal('addWorktimeModal');
+    // 找到對應的員工ID
+    const assignee = assignees.find(emp => emp.name === assigneeName);
+    const employeeId = assignee ? assignee.id : null;
+
+    if (!employeeId) {
+        alert('找不到對應的員工');
+        return;
+    }
+
+    try {
+        const result = await apiRequest('/api/work-hours/create', 'POST', {
+            subTaskId: currentSelectedSubTaskId,
+            employeeId: employeeId,
+            workHour: hours,
+            workDescription: description,
+            createdAt: new Date().toISOString()
+        });
+        
+        if (result.result === true) {
+            // 如果是從心智圖新增，更新節點
+            if (editingWorktimeNode && currentMode === 'mindmap') {
+                const noteText = `負責人: ${assigneeName}\n工作時數: ${hours}小時\n工作內容: ${description}`;
+                
+                mindMapInstance.execCommand('SET_NODE_TEXT', editingWorktimeNode, name);
+                mindMapInstance.execCommand('SET_NODE_NOTE', editingWorktimeNode, noteText);
+                mindMapInstance.execCommand('SET_NODE_STYLE', editingWorktimeNode, {
+                    backgroundColor: '#FFE4B5',
+                    borderColor: '#DEB887',
+                    fontSize: 13,
+                    color: '#8B4513',
+                    borderWidth: 2,
+                    borderRadius: 5
+                });
+                
+                // 確保節點標記為工時類型
+                editingWorktimeNode.nodeData.data.isWorktime = true;
+                editingWorktimeNode.nodeData.data.worktimeId = result.data.id;
+                editingWorktimeNode.uid = result.data.id;
+                
+                // 立即清理該節點的子節點
+                setTimeout(() => {
+                    cleanWorktimeChildren();
+                }, 100);
+                
+                syncMindMapChangesToData();
+            }
+            
+            closeModal('addWorktimeModal');
+            alert('工時新增成功！');
+            
+            // 重新載入當前專案的子任務以更新統計
+            await reloadCurrentProjectSubTasks();
+            
+            // 重新渲染介面
+            renderSubTasks();
+            renderDashboard();
+            
+        } else {
+            throw new Error(result.msg || '新增失敗');
+        }
+        
+    } catch (error) {
+        console.error('新增工時失敗:', error);
+        alert(`新增失敗：${error.message}`);
+    }
+
+    // 清理變數
     editingWorktimeNode = null;
+    currentSelectedSubTaskId = null;
+    currentSelectedSubTaskName = null;
 }
 
 function updateWorktime() {
@@ -2378,6 +2649,22 @@ function confirmDeleteWorktime() {
             traverse(nodeData);
             return texts;
         }
+
+        async function reloadCurrentProjectSubTasks() {
+    if (!currentTopTaskId) return;
+    
+    try {
+        const result = await apiRequest('/api/subtasks/tree', 'POST', { topTaskId: currentTopTaskId });
+        if (result.result && result.data) {
+            const task = topTasks.find(t => t.id === currentTopTaskId);
+            if (task) {
+                task.subTasks = convertSubTasksTree(result.data);
+            }
+        }
+    } catch (error) {
+        console.warn('重新載入子任務失敗:', error);
+    }
+}
 
         // 小地圖事件處理函數
         function onMiniMapMousedown(e) {
@@ -2927,6 +3214,7 @@ function confirmDeleteWorktime() {
                         <div class="subtask-actions">
                             <button class="action-btn" onclick="editSubTask(${subTask.id})">編輯</button>
                             <button class="action-btn" onclick="deleteSubTask(${subTask.id})">刪除</button>
+                            <button class="action-btn" onclick="openAddWorktimeModalFromSubTask(${subTask.id}, '${subTask.name}')">新增工時</button>    
                         </div>
                     </div>
                 `;
@@ -3056,6 +3344,12 @@ function confirmDeleteWorktime() {
         function closeModal(modalId) {
     document.getElementById(modalId).style.display = 'none';
     
+
+    if (modalId === 'addWorktimeModal') {
+    closeModalWorktime(modalId);
+    return;
+}
+
     if (modalId === 'addTaskModal') {
         editingTaskId = null;
     } else if (modalId === 'addSubTaskModal') {
@@ -3089,71 +3383,119 @@ function confirmDeleteWorktime() {
     }
 }
 
+function closeModalWorktime(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+    
+    if (modalId === 'addWorktimeModal') {
+        // 清理子任務信息顯示
+        const modal = document.getElementById('addWorktimeModal');
+        const infoDiv = modal.querySelector('.subtask-info');
+        if (infoDiv) {
+            infoDiv.remove();
+        }
+        
+        // 如果是取消新增工時，且是新創建的節點，則刪除它
+        if (editingWorktimeNode && editingWorktimeNode._isNewNode) {
+            console.log('🗑️ 取消新增工時，刪除空節點');
+            setTimeout(() => {
+                try {
+                    mindMapInstance.execCommand('REMOVE_NODE', editingWorktimeNode);
+                } catch (error) {
+                    console.error('刪除空工時節點失敗:', error);
+                }
+            }, 10);
+        }
+        
+        // 清理變數
+        editingWorktimeId = null;
+        editingWorktimeNode = null;
+        currentSelectedSubTaskId = null;
+        currentSelectedSubTaskName = null;
+    }
+}
+
         // CRUD 操作
-        function addTopTask() {
-            const name = document.getElementById('taskName').value.trim();
-            const description = document.getElementById('taskDescription').value.trim();
-            const budget = parseFloat(document.getElementById('taskBudget').value) || 0;
-            const owner = document.getElementById('taskOwner').value.trim();
+        async function addTopTask() {
+    const name = document.getElementById('taskName').value.trim();
+    const description = document.getElementById('taskDescription').value.trim();
+    const budget = parseFloat(document.getElementById('taskBudget').value) || 0;
+    const ownerName = document.getElementById('taskOwner').value.trim();
 
-            if (!name) {
-                alert('請輸入專案簡稱');
-                return;
-            }
+    if (!name) {
+        alert('請輸入專案簡稱');
+        return;
+    }
 
-            const newTask = {
-                id: Date.now(),
-                name: name,
-                description: description,
-                budget: budget,
-                owner: owner,
-                subTasks: []
-            };
+    // 找到對應的員工ID
+    const manager = assignees.find(emp => emp.name === ownerName);
+    const managerId = manager ? manager.id : null;
 
-            topTasks.push(newTask);
-            renderTopTasks();
-            renderDashboard();
+    try {
+        const result = await apiRequest('/api/toptasks/create', 'POST', {
+            name: name,
+            description: description,
+            budget: budget,
+            managerId: managerId,
+            createdById: 1 // 暫時使用固定值，實際應用中應該是當前登入用戶ID
+        });
+        
+        if (result.result === true) {
+            // 重新載入專案列表
+            await loadMockData();
             closeModal('addTaskModal');
-            saveDataToLocalStorage();
+            alert('專案新增成功！');
+        } else {
+            throw new Error(result.msg || '新增失敗');
         }
+        
+    } catch (error) {
+        console.error('新增專案失敗:', error);
+        alert(`新增失敗：${error.message}`);
+    }
+}
 
-        function updateTopTask() {
-            if (!editingTaskId) return;
 
-            const name = document.getElementById('taskName').value.trim();
-            const description = document.getElementById('taskDescription').value.trim();
-            const budget = parseFloat(document.getElementById('taskBudget').value) || 0;
-            const owner = document.getElementById('taskOwner').value.trim();
+        async function updateTopTask() {
+    if (!editingTaskId) return;
 
-            if (!name) {
-                alert('請輸入專案簡稱');
-                return;
-            }
+    const name = document.getElementById('taskName').value.trim();
+    const description = document.getElementById('taskDescription').value.trim();
+    const budget = parseFloat(document.getElementById('taskBudget').value) || 0;
+    const ownerName = document.getElementById('taskOwner').value.trim();
 
-            const taskIndex = topTasks.findIndex(t => t.id === editingTaskId);
-            if (taskIndex !== -1) {
-                topTasks[taskIndex].name = name;
-                topTasks[taskIndex].description = description;
-                topTasks[taskIndex].budget = budget;
-                topTasks[taskIndex].owner = owner;
+    if (!name) {
+        alert('請輸入專案簡稱');
+        return;
+    }
 
-                renderTopTasks();
-                renderDashboard();
-                
-                const tab = document.querySelector(`[data-tab="task-${editingTaskId}"]`);
-                if (tab) {
-                    tab.innerHTML = `${name} <span class="close-tab" onclick="event.stopPropagation(); closeTab('task-${editingTaskId}')">&times;</span>`;
-                    tab.onclick = () => switchTab(`task-${editingTaskId}`);
-                }
-                
-                closeModal('addTaskModal');
-                saveDataToLocalStorage();
-                
-                if (currentTopTaskId === editingTaskId && currentMode === 'mindmap') {
-                    renderMindMap();
-                }
-            }
+    // 找到對應的員工ID
+    const manager = assignees.find(emp => emp.name === ownerName);
+    const managerId = manager ? manager.id : null;
+
+    try {
+        const result = await apiRequest('/api/toptasks/update', 'POST', {
+            id: editingTaskId,
+            name: name,
+            description: description,
+            budget: budget,
+            managerId: managerId,
+            updatedById: 1 // 暫時使用固定值
+        });
+        
+        if (result.result === true) {
+            // 重新載入專案列表
+            await loadMockData();
+            closeModal('addTaskModal');
+            alert('專案更新成功！');
+        } else {
+            throw new Error(result.msg || '更新失敗');
         }
+        
+    } catch (error) {
+        console.error('更新專案失敗:', error);
+        alert(`更新失敗：${error.message}`);
+    }
+}
 
         function confirmDeleteTask() {
             if (!editingTaskId) return;
@@ -3161,88 +3503,93 @@ function confirmDeleteWorktime() {
             document.getElementById('confirmDeleteModal').style.display = 'block';
         }
 
-        function deleteTopTask() {
-            if (!editingTaskId) return;
+        async function deleteTopTask() {
+    if (!editingTaskId) return;
 
-            const taskIndex = topTasks.findIndex(t => t.id === editingTaskId);
-            if (taskIndex !== -1) {
-                topTasks.splice(taskIndex, 1);
-                renderTopTasks();
-                renderDashboard();
-                
-                if (currentTopTaskId === editingTaskId) {
-                    closeTab(`task-${editingTaskId}`);
-                    currentTopTaskId = null;
-                }
-                
-                saveDataToLocalStorage();
-            }
-
+    try {
+        const result = await apiRequest('/api/toptasks/delete', 'POST', {
+            id: editingTaskId,
+            deletedById: 1 // 暫時使用固定值
+        });
+        
+        if (result.result === true) {
+            // 重新載入專案列表
+            await loadMockData();
             closeModal('confirmDeleteModal');
-            editingTaskId = null;
+            alert(`專案刪除成功！\n${result.msg}`);
+            
+            // 如果當前正在查看被刪除的專案，切換到首頁
+            if (currentTopTaskId === editingTaskId) {
+                closeTab(`task-${editingTaskId}`);
+                currentTopTaskId = null;
+            }
+        } else {
+            throw new Error(result.msg || '刪除失敗');
         }
+        
+    } catch (error) {
+        console.error('刪除專案失敗:', error);
+        alert(`刪除失敗：${error.message}`);
+    }
 
-        function addSubTask() {
+    editingTaskId = null;
+}
+
+
+        async function addSubTask() {
     if (!currentTopTaskId) return;
 
     const name = document.getElementById('subTaskName').value.trim();
-    const assignee = document.getElementById('subTaskAssignee').value;
-    const hours = parseInt(document.getElementById('subTaskHours').value) || 0;
-    const status = document.getElementById('subTaskStatus').value || 'pending';
+    const assigneeName = document.getElementById('subTaskAssignee').value;
+    const hours = parseFloat(document.getElementById('subTaskHours').value) || 0;
+    const status = document.getElementById('subTaskStatus').value || '待開始';
 
     if (!name) {
         alert('請輸入任務名稱');
         return;
     }
 
-    const task = topTasks.find(t => t.id === currentTopTaskId);
-    if (!task) return;
-    
-    if (editingNodeData && currentMode === 'mindmap') {
-        const noteText = `負責人: ${assignee}\n預估工時: ${hours}小時\n狀態: ${getStatusLabel(status)}`;
-        
-        mindMapInstance.execCommand('SET_NODE_TEXT', editingNodeData, name);
-        mindMapInstance.execCommand('SET_NODE_NOTE', editingNodeData, noteText);
-        mindMapInstance.execCommand('SET_NODE_STYLE', editingNodeData, {
-            backgroundColor: getStatusColor(status),
-            borderColor: getStatusBorderColor(status),
-            fontSize: 14,
-            color: '#333',
-            borderWidth: 2,
-            borderRadius: 5
+    // 找到對應的員工ID
+    const assignee = assignees.find(emp => emp.name === assigneeName);
+    const assigneeId = assignee ? assignee.id : null;
+
+    try {
+        const result = await apiRequest('/api/subtasks/create', 'POST', {
+            parentId: 0, // 0表示頂層子任務
+            topTaskId: currentTopTaskId,
+            name: name,
+            description: name,
+            estimatedHours: hours,
+            status: status,
+            assigneeId: assigneeId,
+            createdById: 1 // 暫時使用固定值
         });
         
-        // 移除新節點標記
-        editingNodeData._isNewNode = false;
-        editingNodeData.uid = Date.now();
-        
-        syncMindMapChangesToData();
-    } else {
-        const newSubTask = {
-            id: Date.now(),
-            name: name,
-            assignee: assignee,
-            hours: hours,
-            status: status,
-            children: []
-        };
-
-        task.subTasks.push(newSubTask);
-        
-        renderSubTasks();
-        renderDashboard();
-        saveDataToLocalStorage();
-
-        if (currentMode === 'assignee') {
-            renderAssigneeView();
-        } else if (currentMode === 'mindmap') {
-            renderMindMap();
+        if (result.result === true) {
+            // 重新載入當前專案的子任務
+            await reloadCurrentProjectSubTasks();
+            closeModal('addSubTaskModal');
+            alert('子任務新增成功！');
+            
+            // 重新渲染介面
+            renderSubTasks();
+            if (currentMode === 'assignee') {
+                renderAssigneeView();
+            } else if (currentMode === 'mindmap') {
+                renderMindMap();
+            }
+        } else {
+            throw new Error(result.msg || '新增失敗');
         }
+        
+    } catch (error) {
+        console.error('新增子任務失敗:', error);
+        alert(`新增失敗：${error.message}`);
     }
 
-    closeModal('addSubTaskModal');
     editingNodeData = null;
 }
+
 
         function editSubTask(subTaskId) {
             if (currentMode === 'mindmap') {
@@ -3375,77 +3722,120 @@ function confirmDeleteWorktime() {
             document.getElementById('addSubTaskModal').style.display = 'block';
         }
 
-        function updateSubTask() {
-            const name = document.getElementById('subTaskName').value.trim();
-            const assignee = document.getElementById('subTaskAssignee').value;
-            const hours = parseInt(document.getElementById('subTaskHours').value) || 0;
-            const status = document.getElementById('subTaskStatus').value || 'pending';
+        async function updateSubTask() {
+    const name = document.getElementById('subTaskName').value.trim();
+    const assigneeName = document.getElementById('subTaskAssignee').value;
+    const hours = parseFloat(document.getElementById('subTaskHours').value) || 0;
+    const status = document.getElementById('subTaskStatus').value || '待開始';
 
-            if (!name) {
-                alert('請輸入任務名稱');
-                return;
-            }
+    if (!name) {
+        alert('請輸入任務名稱');
+        return;
+    }
 
-            if (editingNodeData && currentMode === 'mindmap') {
-                const noteText = `負責人: ${assignee}\n預估工時: ${hours}小時\n狀態: ${getStatusLabel(status)}`;
-                
-                mindMapInstance.execCommand('SET_NODE_TEXT', editingNodeData, name);
-                mindMapInstance.execCommand('SET_NODE_NOTE', editingNodeData, noteText);
-                mindMapInstance.execCommand('SET_NODE_STYLE', editingNodeData, {
-                    backgroundColor: getStatusColor(status),
-                    borderColor: getStatusBorderColor(status)
-                });
-                
-                syncMindMapChangesToData();
-            } else if (editingSubTaskId) {
-                const task = topTasks.find(t => t.id === currentTopTaskId);
-                if (!task) return;
-                
-                function updateSubTaskData(tasks) {
-                    for (let subTask of tasks) {
-                        if (subTask.id === editingSubTaskId) {
-                            subTask.name = name;
-                            subTask.assignee = assignee;
-                            subTask.hours = hours;
-                            subTask.status = status;
-                            return true;
-                        }
-                        if (subTask.children && updateSubTaskData(subTask.children)) {
-                            return true;
-                        }
-                    }
-                    return false;
-                }
-                
-                updateSubTaskData(task.subTasks);
-                
-                renderSubTasks();
-                renderDashboard();
-                saveDataToLocalStorage();
-            }
-            
+    // 找到對應的員工ID
+    const assignee = assignees.find(emp => emp.name === assigneeName);
+    const assigneeId = assignee ? assignee.id : null;
+
+    let subTaskId = editingSubTaskId;
+    
+    // 如果是從心智圖編輯，從節點獲取ID
+    if (editingNodeData && editingNodeData.uid) {
+        subTaskId = editingNodeData.uid;
+    }
+
+    if (!subTaskId) {
+        alert('無法確定要更新的子任務');
+        return;
+    }
+
+    try {
+        const result = await apiRequest('/api/subtasks/update', 'POST', {
+            id: subTaskId,
+            name: name,
+            description: name,
+            status: status,
+            estimatedHours: hours,
+            assigneeId: assigneeId,
+            updatedById: 1 // 暫時使用固定值
+        });
+        
+        if (result.result === true) {
+            // 重新載入當前專案的子任務
+            await reloadCurrentProjectSubTasks();
             closeModal('addSubTaskModal');
-            editingNodeData = null;
-            editingSubTaskId = null;
+            alert('子任務更新成功！');
+            
+            // 重新渲染介面
+            renderSubTasks();
+            if (currentMode === 'assignee') {
+                renderAssigneeView();
+            } else if (currentMode === 'mindmap') {
+                renderMindMap();
+            }
+        } else {
+            throw new Error(result.msg || '更新失敗');
         }
+        
+    } catch (error) {
+        console.error('更新子任務失敗:', error);
+        alert(`更新失敗：${error.message}`);
+    }
+    
+    editingNodeData = null;
+    editingSubTaskId = null;
+}
 
         function confirmDeleteSubTask() {
             document.getElementById('addSubTaskModal').style.display = 'none';
             document.getElementById('confirmDeleteSubTaskModal').style.display = 'block';
         }
 
-        function deleteSubTaskConfirmed() {
-            if (editingNodeData && currentMode === 'mindmap') {
-                mindMapInstance.execCommand('REMOVE_NODE', editingNodeData);
-                syncMindMapChangesToData();
-            } else if (editingSubTaskId) {
-                deleteSubTask(editingSubTaskId);
-            }
-            
+        async function deleteSubTaskConfirmed() {
+    let subTaskId = editingSubTaskId;
+    
+    // 如果是從心智圖刪除，從節點獲取ID
+    if (editingNodeData && editingNodeData.uid) {
+        subTaskId = editingNodeData.uid;
+    }
+
+    if (!subTaskId) {
+        alert('無法確定要刪除的子任務');
+        return;
+    }
+
+    try {
+        const result = await apiRequest('/api/subtasks/delete', 'POST', {
+            id: subTaskId,
+            deletedById: 1 // 暫時使用固定值
+        });
+        
+        if (result.result === true) {
+            // 重新載入當前專案的子任務
+            await reloadCurrentProjectSubTasks();
             closeModal('confirmDeleteSubTaskModal');
-            editingNodeData = null;
-            editingSubTaskId = null;
+            alert(`子任務刪除成功！\n${result.msg}`);
+            
+            // 重新渲染介面
+            renderSubTasks();
+            if (currentMode === 'assignee') {
+                renderAssigneeView();
+            } else if (currentMode === 'mindmap') {
+                renderMindMap();
+            }
+        } else {
+            throw new Error(result.msg || '刪除失敗');
         }
+        
+    } catch (error) {
+        console.error('刪除子任務失敗:', error);
+        alert(`刪除失敗：${error.message}`);
+    }
+    
+    editingNodeData = null;
+    editingSubTaskId = null;
+}
+
 
         function syncMindMapChangesToData() {
     if (!mindMapInstance || !currentTopTaskId) return;
@@ -3529,7 +3919,7 @@ function confirmDeleteWorktime() {
     
     task.subTasks = convertFromMindMapData(mindMapData);
     renderSubTasks();
-    saveDataToLocalStorage();
+    syncToServer();
     
     if (window.dashboardUpdateTimer) {
         clearTimeout(window.dashboardUpdateTimer);
@@ -3563,7 +3953,7 @@ function confirmDeleteWorktime() {
             
             renderSubTasks();
             renderDashboard();
-            saveDataToLocalStorage();
+            syncToServer();
 
             if (currentMode === 'assignee') {
                 renderAssigneeView();
@@ -3573,14 +3963,101 @@ function confirmDeleteWorktime() {
         }
 
         // 資料儲存
-        function saveDataToLocalStorage() {
-            const data = {
-                projects: topTasks,
-                assignees: assignees,
-                taskStatuses: taskStatuses
-            };
-            localStorage.setItem('project-data', JSON.stringify(data));
+        async function syncToServer() {
+    try {
+        const data = {
+            projects: topTasks,
+            assignees: assignees,
+            taskStatuses: taskStatuses
+        };
+        
+        await apiRequest('/api/sync', 'POST', data);
+        console.log('✅ 資料同步到伺服器成功');
+        
+        // 同時儲存到本地作為備用
+        saveDataToLocalStorage();
+    } catch (error) {
+        console.error('❌ 同步到伺服器失敗:', error);
+        // 失敗時仍儲存到本地
+        saveDataToLocalStorage();
+    }
+}
+
+async function saveDataToLocalStorage() {
+    // 仍然保存到本地作為備份
+    const data = {
+        projects: topTasks,
+        assignees: assignees,
+        taskStatuses: taskStatuses,
+        lastSync: new Date().toISOString()
+    };
+    localStorage.setItem('project-data', JSON.stringify(data));
+    
+    // 注意：由於我們現在直接使用API，不需要額外的同步
+    console.log('✅ 資料已備份到本地儲存');
+}
+
+function populateAssigneeOptions() {
+    const selects = ['subTaskAssignee', 'worktimeAssignee'];
+    
+    selects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (select) {
+            select.innerHTML = '<option value="">請選擇負責人</option>';
+            
+            assignees.forEach(assignee => {
+                const option = document.createElement('option');
+                option.value = assignee.name;
+                option.textContent = `${assignee.name}${assignee.department ? ` (${assignee.department})` : ''}`;
+                select.appendChild(option);
+            });
         }
+    });
+}
+
+async function testAllAPIs() {
+    console.log('🧪 開始測試所有 API...');
+    
+    try {
+        // 測試專案列表
+        console.log('1. 測試專案列表...');
+        const projects = await apiRequest('/api/toptasks/list', 'POST', { "includeDeleted": false });
+        console.log('✅ 專案列表:', projects);
+        
+        // 測試員工列表
+        console.log('2. 測試員工列表...');
+        const employees = await apiRequest('/api/employees/list', 'POST', {});
+        console.log('✅ 員工列表:', employees);
+        
+        if (projects.data && projects.data.length > 0) {
+            const firstProjectId = projects.data[0].id;
+            
+            // 測試專案詳情
+            console.log('3. 測試專案詳情...');
+            const projectDetail = await apiRequest('/api/toptasks/detail', 'POST', { id: firstProjectId });
+            console.log('✅ 專案詳情:', projectDetail);
+            
+            // 測試子任務樹
+            console.log('4. 測試子任務樹...');
+            const subTasks = await apiRequest('/api/subtasks/tree', 'POST', { topTaskId: firstProjectId });
+            console.log('✅ 子任務樹:', subTasks);
+        }
+        
+        console.log('✅ 所有 API 測試完成');
+        
+    } catch (error) {
+        console.error('❌ API 測試失敗:', error);
+    }
+}
+
+function startAutoSync() {
+    // 每5分鐘自動同步一次
+    setInterval(async () => {
+        if (topTasks.length > 0) {
+            await syncToServer();
+        }
+    }, 5 * 60 * 1000);
+}
 
         function loadDataFromLocalStorage() {
             const data = localStorage.getItem('project-data');
