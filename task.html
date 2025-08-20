@@ -2308,10 +2308,26 @@ function testMindMapEditState() {
 
 
 function addWorktimeNode() {
-    if (!mindMapInstance) return;
+    if (!mindMapInstance) {
+        alert('心智圖未初始化');
+        return;
+    }
+    
+    if (!isEditMode) {
+        alert('請先啟用編輯模式');
+        return;
+    }
     
     if (mindMapInstance.renderer && mindMapInstance.renderer.activeNodeList.length > 0) {
         const activeNode = mindMapInstance.renderer.activeNodeList[0];
+        
+        console.log('⏰ 新增工時 - 選中節點:', {
+            nodeText: activeNode.nodeData?.data?.text?.replace(/<[^>]*>/g, ''),
+            nodeUid: activeNode.uid,
+            isRoot: activeNode.nodeData?.data?.isRoot,
+            isWorktime: activeNode.nodeData?.data?.isWorktime,
+            subTaskId: activeNode.nodeData?.data?.subTaskId // 檢查是否有存儲的 subTaskId
+        });
         
         // 檢查選中的節點是否為工時節點
         if (activeNode.nodeData.data.isWorktime) {
@@ -2325,22 +2341,93 @@ function addWorktimeNode() {
             return;
         }
         
-        // 獲取子任務ID和名稱
-        currentSelectedSubTaskId = activeNode.uid || activeNode.nodeData.data.subTaskId;
-        currentSelectedSubTaskName = activeNode.nodeData.data.text;
+        // *** 關鍵修復：優先使用節點存儲的 subTaskId ***
+        let subTaskId = activeNode.nodeData.data.subTaskId || activeNode.uid;
+        const nodeText = activeNode.nodeData.data.text?.replace(/<[^>]*>/g, '').trim();
         
-        if (!currentSelectedSubTaskId) {
-            alert('無法獲取子任務ID，請確保選中的是有效的子任務節點');
+        console.log('🔍 初始 subTaskId:', subTaskId, '節點文字:', nodeText);
+        
+        // 如果沒有有效的 subTaskId，從專案資料中查找
+        if (!subTaskId || isNaN(parseInt(subTaskId)) || parseInt(subTaskId) <= 0) {
+            console.log('⚠️ 節點缺少有效的 subTaskId，從專案資料中查找');
+            
+            if (currentTopTaskId && nodeText) {
+                const task = topTasks.find(t => t.id === currentTopTaskId);
+                if (task) {
+                    function findSubTaskByName(tasks, targetText, path = []) {
+                        for (let subTask of tasks) {
+                            // 跳過工時節點
+                            if (subTask.isWorktime) continue;
+                            
+                            const currentPath = [...path, subTask.name];
+                            console.log('🔍 比對:', {
+                                targetText: targetText,
+                                subTaskName: subTask.name,
+                                subTaskId: subTask.id,
+                                path: currentPath.join(' > ')
+                            });
+                            
+                            if ((subTask.name || '').trim() === targetText) {
+                                console.log('✅ 找到匹配的子任務:', {
+                                    id: subTask.id,
+                                    name: subTask.name,
+                                    path: currentPath.join(' > ')
+                                });
+                                return subTask.id;
+                            }
+                            
+                            if (subTask.children && subTask.children.length > 0) {
+                                const found = findSubTaskByName(subTask.children, targetText, currentPath);
+                                if (found) return found;
+                            }
+                        }
+                        return null;
+                    }
+                    
+                    const foundId = findSubTaskByName(task.subTasks, nodeText);
+                    if (foundId) {
+                        subTaskId = foundId;
+                        // 將找到的 ID 存儲到節點中，避免下次重複查找
+                        activeNode.nodeData.data.subTaskId = foundId;
+                        console.log('✅ 找到真實的子任務 ID:', foundId);
+                    } else {
+                        console.error('❌ 無法找到對應的子任務');
+                        alert(`無法找到子任務「${nodeText}」的資料庫記錄，請重新載入頁面後再試`);
+                        return;
+                    }
+                }
+            } else {
+                console.error('❌ 缺少必要資料');
+                alert('無法獲取子任務資訊，請重新載入頁面後再試');
+                return;
+            }
+        }
+        
+        // 確保 ID 是數字類型
+        const numericSubTaskId = parseInt(subTaskId);
+        if (isNaN(numericSubTaskId) || numericSubTaskId <= 0) {
+            console.error('❌ 子任務 ID 格式錯誤:', subTaskId);
+            alert('子任務 ID 格式錯誤，請重新載入頁面後再試');
             return;
         }
         
-        console.log('🎯 準備在子任務下新增工時:', currentSelectedSubTaskName, 'ID:', currentSelectedSubTaskId);
+        // *** 關鍵：設置全域變數 ***
+        currentSelectedSubTaskId = numericSubTaskId;
+        currentSelectedSubTaskName = nodeText;
         
+        console.log('✅ 工時新增狀態設置完成:', {
+            currentSelectedSubTaskId: currentSelectedSubTaskId,
+            currentSelectedSubTaskName: currentSelectedSubTaskName,
+            type: typeof currentSelectedSubTaskId
+        });
+        
+        // 創建新的工時節點
         mindMapInstance.execCommand('INSERT_CHILD_NODE', false, [], {
             data: {
                 text: '新工時',
-                expand: false, // 工時節點不展開
+                expand: false,
                 isWorktime: true,
+                parentSubTaskId: numericSubTaskId, // 存儲父節點的 subTaskId
                 backgroundColor: '#FFE4B5',
                 borderColor: '#DEB887',
                 fontSize: 13,
@@ -2353,23 +2440,93 @@ function addWorktimeNode() {
         setTimeout(() => {
             const newNode = activeNode.children[activeNode.children.length - 1];
             if (newNode) {
+                // 將父節點的 subTaskId 傳遞給新節點
+                newNode.nodeData.data.parentSubTaskId = numericSubTaskId;
+                console.log('✅ 新工時節點已創建，打開模態框');
                 openAddWorktimeModalFromMindMap(newNode);
+            } else {
+                console.error('❌ 新工時節點創建失敗');
             }
-        }, 100);
+        }, 200);
+        
     } else {
         alert('請先選擇一個子任務節點');
     }
 }
 
 
+
 function openAddWorktimeModalFromMindMap(node) {
-    if (!node) return;
+    if (!node) {
+        console.error('❌ 無效的工時節點');
+        return;
+    }
     
+    // 優先使用存儲的 parentSubTaskId
+    if (node.nodeData.data.parentSubTaskId) {
+        currentSelectedSubTaskId = node.nodeData.data.parentSubTaskId;
+        console.log('✅ 使用節點存儲的 parentSubTaskId:', currentSelectedSubTaskId);
+    }
+    
+    console.log('🎯 從心智圖打開新增工時模態框:', {
+        nodeText: node.nodeData?.data?.text,
+        parentSubTaskId: node.nodeData?.data?.parentSubTaskId,
+        currentSelectedSubTaskId: currentSelectedSubTaskId,
+        currentSelectedSubTaskName: currentSelectedSubTaskName,
+        type: typeof currentSelectedSubTaskId
+    });
+    
+    // 設置編輯狀態
     editingWorktimeNode = node;
     editingWorktimeId = null;
     
     // 標記這是一個新創建的節點
     node._isNewNode = true;
+    
+    // 檢查必要的變數是否已設置
+    if (!currentSelectedSubTaskId || currentSelectedSubTaskId <= 0) {
+        console.error('❌ currentSelectedSubTaskId 無效:', currentSelectedSubTaskId);
+        alert('無法獲取子任務資訊，請重新操作');
+        
+        // 刪除無效的節點
+        if (mindMapInstance) {
+            try {
+                mindMapInstance.execCommand('REMOVE_NODE', node);
+            } catch (error) {
+                console.error('刪除無效節點失敗:', error);
+            }
+        }
+        return;
+    }
+    
+    // 驗證 subTaskId 是否存在於當前專案中
+    if (currentTopTaskId) {
+        const task = topTasks.find(t => t.id === currentTopTaskId);
+        if (task) {
+            let found = false;
+            function verifySubTaskExists(tasks) {
+                for (let subTask of tasks) {
+                    if (subTask.id === currentSelectedSubTaskId && !subTask.isWorktime) {
+                        found = true;
+                        currentSelectedSubTaskName = subTask.name;
+                        return true;
+                    }
+                    if (subTask.children && verifySubTaskExists(subTask.children)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            verifySubTaskExists(task.subTasks);
+            
+            if (!found) {
+                console.error('❌ 子任務 ID 不存在於當前專案中:', currentSelectedSubTaskId);
+                alert('子任務資料不一致，請重新載入頁面');
+                return;
+            }
+        }
+    }
     
     document.getElementById('worktimeModalTitle').textContent = `新增工時 - ${currentSelectedSubTaskName || '子任務'}`;
     document.getElementById('worktimeAddBtn').style.display = 'inline-block';
@@ -2383,19 +2540,19 @@ function openAddWorktimeModalFromMindMap(node) {
     document.getElementById('worktimeDescription').value = '';
     
     // 顯示關聯的子任務信息
-    if (currentSelectedSubTaskName) {
-        const modal = document.getElementById('addWorktimeModal');
-        let infoDiv = modal.querySelector('.subtask-info');
-        if (!infoDiv) {
-            infoDiv = document.createElement('div');
-            infoDiv.className = 'subtask-info';
-            infoDiv.style.cssText = 'background: #f0f8ff; padding: 10px; margin-bottom: 15px; border-radius: 4px; border-left: 4px solid #2196f3;';
-            modal.querySelector('.modal-body').insertBefore(infoDiv, modal.querySelector('.form-group'));
-        }
-        infoDiv.innerHTML = `<strong>關聯子任務：</strong>${currentSelectedSubTaskName}`;
+    const modal = document.getElementById('addWorktimeModal');
+    let infoDiv = modal.querySelector('.subtask-info');
+    if (!infoDiv) {
+        infoDiv = document.createElement('div');
+        infoDiv.className = 'subtask-info';
+        infoDiv.style.cssText = 'background: #f0f8ff; padding: 10px; margin-bottom: 15px; border-radius: 4px; border-left: 4px solid #2196f3;';
+        modal.querySelector('.modal-body').insertBefore(infoDiv, modal.querySelector('.form-group'));
     }
+    infoDiv.innerHTML = `<strong>關聯子任務：</strong>${currentSelectedSubTaskName} (ID: ${currentSelectedSubTaskId})`;
     
     document.getElementById('addWorktimeModal').style.display = 'block';
+    
+    console.log('✅ 新增工時模態框已顯示，最終 subTaskId:', currentSelectedSubTaskId);
 }
 
 
@@ -2493,6 +2650,15 @@ async function addWorktime() {
     const hours = parseFloat(document.getElementById('worktimeHours').value) || 0;
     const description = document.getElementById('worktimeDescription').value.trim();
 
+    console.log('📝 新增工時 - 表單資料:', {
+        name: name,
+        assigneeName: assigneeName,
+        hours: hours,
+        description: description,
+        currentSelectedSubTaskId: currentSelectedSubTaskId,
+        currentSelectedSubTaskName: currentSelectedSubTaskName
+    });
+
     if (!name) {
         alert('請輸入工作名稱');
         return;
@@ -2509,7 +2675,16 @@ async function addWorktime() {
     }
 
     if (!currentSelectedSubTaskId) {
+        console.error('❌ currentSelectedSubTaskId 未設置');
         alert('請先選擇一個子任務');
+        return;
+    }
+
+    // 確保子任務 ID 是有效的數字
+    const numericSubTaskId = parseInt(currentSelectedSubTaskId);
+    if (isNaN(numericSubTaskId) || numericSubTaskId <= 0) {
+        console.error('❌ 子任務 ID 格式錯誤:', currentSelectedSubTaskId);
+        alert('子任務 ID 格式錯誤，請重新載入頁面後再試');
         return;
     }
 
@@ -2518,24 +2693,24 @@ async function addWorktime() {
     const employeeId = assignee ? assignee.id : null;
 
     if (!employeeId) {
-        alert('找不到對應的員工');
+        console.error('❌ 找不到員工:', assigneeName);
+        console.log('可用員工列表:', assignees);
+        alert('找不到對應的員工，請檢查員工名稱');
         return;
     }
 
     try {
-        // 準備完整的工作描述，包含名稱和描述
-        const fullDescription = description ? `${name}: ${description}` : name;
-        
+        // 準備 API 請求資料
         const requestData = {
-            subTaskId: currentSelectedSubTaskId,
+            subTaskId: numericSubTaskId,
             employeeId: employeeId,
             workHour: hours,
-            workDescription: fullDescription,
+            workDescription: description ? `${name}: ${description}` : name,
             createdAt: new Date().toISOString()
         };
 
-        console.log('📝 新增工時請求資料:', requestData);
-        console.log('📝 選擇的負責人:', { name: assigneeName, id: employeeId });
+        console.log('📤 工時新增 API 請求資料:', requestData);
+        console.log('📋 員工資料:', { name: assigneeName, id: employeeId });
 
         const result = await apiRequest('/api/work-hours/create', 'POST', requestData);
         
@@ -2561,8 +2736,9 @@ async function addWorktime() {
                 editingWorktimeNode.nodeData.data.isWorktime = true;
                 editingWorktimeNode.nodeData.data.worktimeId = result.data.id;
                 editingWorktimeNode.uid = result.data.id;
+                editingWorktimeNode._isNewNode = false; // 已經儲存
                 
-                console.log('✅ 心智圖節點更新完成, worktimeId:', result.data.id);
+                console.log('✅ 心智圖工時節點更新完成, worktimeId:', result.data.id);
             }
             
             closeModal('addWorktimeModal');
@@ -2575,13 +2751,46 @@ async function addWorktime() {
             renderSubTasks();
             renderDashboard();
             
+            // *** 重點：心智圖模式下自動重新渲染 ***
+            if (currentMode === 'mindmap') {
+                console.log('🔄 自動重新渲染心智圖...');
+                renderMindMap();
+            }
+            
         } else {
             throw new Error(result.msg || '新增失敗');
         }
         
     } catch (error) {
-        console.error('新增工時失敗:', error);
-        alert(`新增失敗：${error.message}`);
+        console.error('❌ 新增工時失敗:', error);
+        
+        let errorMessage = `新增失敗：${error.message}`;
+        if (error.message.includes('400')) {
+            errorMessage += '\n\n可能的原因：\n1. 子任務 ID 不存在或無效\n2. 員工 ID 不存在或無效\n3. 參數格式錯誤\n4. 必要欄位缺失';
+            
+            // 提供調試信息
+            console.error('調試信息:', {
+                subTaskId: numericSubTaskId,
+                employeeId: employeeId,
+                requestData: {
+                    subTaskId: numericSubTaskId,
+                    employeeId: employeeId,
+                    workHour: hours,
+                    workDescription: description ? `${name}: ${description}` : name
+                }
+            });
+        }
+        alert(errorMessage);
+        
+        // 如果新增失敗且是從心智圖創建的，刪除該節點
+        if (editingWorktimeNode && editingWorktimeNode._isNewNode && currentMode === 'mindmap') {
+            try {
+                mindMapInstance.execCommand('REMOVE_NODE', editingWorktimeNode);
+                console.log('🗑️ 已刪除新增失敗的工時節點');
+            } catch (removeError) {
+                console.error('刪除失敗節點時出錯:', removeError);
+            }
+        }
     }
 
     // 清理變數
@@ -3089,13 +3298,21 @@ function deleteSubTaskFromList(subTaskId) {
        function convertToMindMapData(task) {
     if (!task) return null;
 
-    function convertSubTasks(subTasks) {
+    function convertSubTasks(subTasks, parentPath = []) {
         if (!subTasks || !Array.isArray(subTasks)) {
             return [];
         }
         
         return subTasks.map(subTask => {
-            const children = subTask.children ? convertSubTasks(subTask.children) : [];
+            const currentPath = [...parentPath, subTask.name];
+            const children = subTask.children ? convertSubTasks(subTask.children, currentPath) : [];
+            
+            console.log('🎯 轉換節點:', {
+                name: subTask.name,
+                id: subTask.id,
+                isWorktime: subTask.isWorktime,
+                path: currentPath.join(' > ')
+            });
             
             // 檢查是否為工時節點
             if (subTask.isWorktime) {
@@ -3104,7 +3321,7 @@ function deleteSubTaskFromList(subTaskId) {
                         text: subTask.name || '未命名工時',
                         expand: false,
                         isWorktime: true,
-                        worktimeId: subTask.id, // 設置工時 ID
+                        worktimeId: subTask.id,
                         note: `負責人: ${subTask.assignee || '未指派'}\n工作時數: ${subTask.hours || 0}小時\n工作內容: ${subTask.description || ''}`,
                         backgroundColor: '#FFE4B5',
                         fontSize: 13,
@@ -3114,14 +3331,14 @@ function deleteSubTaskFromList(subTaskId) {
                         borderRadius: 5
                     },
                     children: [],
-                    uid: subTask.id // 確保設置正確的數字 ID
+                    uid: `worktime_${subTask.id}` // 使用特殊前綴避免衝突
                 };
             } else {
                 return {
                     data: {
                         text: subTask.name || '未命名任務',
                         expand: true,
-                        subTaskId: subTask.id, // 設置子任務 ID
+                        subTaskId: subTask.id, // *** 關鍵：存儲真實的 subTaskId ***
                         note: `負責人: ${subTask.assignee || '未指派'}\n預估工時: ${subTask.hours || 0}小時\n狀態: ${getStatusLabel(subTask.status || 'pending')}`,
                         backgroundColor: getStatusColor(subTask.status || 'pending'),
                         fontSize: 14,
@@ -3131,7 +3348,7 @@ function deleteSubTaskFromList(subTaskId) {
                         borderRadius: 5
                     },
                     children: children,
-                    uid: subTask.id // 確保設置正確的數字 ID
+                    uid: `subtask_${subTask.id}` // 使用特殊前綴避免衝突
                 };
             }
         });
@@ -3144,6 +3361,7 @@ function deleteSubTaskFromList(subTaskId) {
                 expand: true,
                 isActive: true,
                 isRoot: true,
+                topTaskId: task.id, // 存儲專案 ID
                 fontSize: 16,
                 fontWeight: 'bold',
                 backgroundColor: '#4287f5',
@@ -3152,7 +3370,7 @@ function deleteSubTaskFromList(subTaskId) {
             children: convertSubTasks(task.subTasks || [])
         };
 
-        console.log('🎯 心智圖資料轉換完成:', result);
+        console.log('🎯 心智圖資料轉換完成，節點數:', countNodes(result));
         return result;
         
     } catch (error) {
@@ -3162,11 +3380,23 @@ function deleteSubTaskFromList(subTaskId) {
             data: {
                 text: task.name || '專案',
                 expand: true,
-                isRoot: true
+                isRoot: true,
+                topTaskId: task.id
             },
             children: []
         };
     }
+}
+
+// 輔助函數：計算節點數量
+function countNodes(node) {
+    let count = 1;
+    if (node.children) {
+        node.children.forEach(child => {
+            count += countNodes(child);
+        });
+    }
+    return count;
 }
 
 
